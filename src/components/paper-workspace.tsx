@@ -13,10 +13,9 @@ import { methodExcerpts } from "@/lib/charts/spec";
 import { CompactPdfDrop } from "@/components/ingest-dropzone";
 import { AskChartButton } from "@/components/ask-chart-button";
 import { AskDrawer } from "@/components/ask-drawer";
-import { ChartCard, ChartFooter } from "@/components/chart-card";
+import { ChartCard, ChartFooter, ChartVisual } from "@/components/chart-card";
 import { EquationTable } from "@/components/equation-table";
 import { EvidenceQuote } from "@/components/evidence-quote";
-import { MermaidFigure } from "@/components/mermaid-figure";
 import { PaperHeader } from "@/components/paper-header";
 import { StatusPill } from "@/components/status-pill";
 import { WalkthroughSection } from "@/components/walkthrough-section";
@@ -316,7 +315,9 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           status: paper.summary.status,
+                          paperId: paper.summary.id,
                           model: settings.chartModel,
+                          fluxModel: settings.fluxModel,
                           excerpts: methodExcerpts(paper.chunks),
                         }),
                       });
@@ -439,7 +440,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
               <p className="text-xs font-medium text-foreground">
                 AI reconstruction from the paper — not a publisher figure.
               </p>
-              <MermaidFigure source={lightbox.mermaid} className="overflow-x-auto [&_svg]:h-auto [&_svg]:w-full" />
+              <ChartVisual chart={lightbox} />
               <ChartFooter chart={lightbox} />
               <div className="flex items-center gap-3">
                 <AskChartButton
@@ -530,7 +531,7 @@ function Overview({
             onClick={onOpenChart}
             className="w-full rounded-xl bg-card p-4 text-left ring-1 ring-foreground/10"
           >
-            <MermaidFigure source={mainChart.mermaid} className="overflow-x-auto [&_svg]:h-auto [&_svg]:w-full" />
+            <ChartVisual chart={mainChart} />
             <p className="mt-2 text-sm text-muted-foreground">{mainChart.caption}</p>
             <p className="mt-2 text-xs font-medium text-foreground">
               AI reconstruction from the paper — not a publisher figure.
@@ -574,7 +575,7 @@ function ChartsView({
         <div>
           <h2 className="font-serif text-2xl">Charts and figures</h2>
           <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
-            Compiled from retrieved method text. Regenerate runs local MLX when mock mode is off.
+            Compiled from retrieved method text. With mock mode off, Regenerate runs the vision model, then FLUX, one at a time.
           </p>
         </div>
         <Button variant="outline" className="h-10" onClick={onRegenerate} disabled={rebuilding}>

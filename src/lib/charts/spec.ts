@@ -24,6 +24,9 @@ const ROLES = new Set<DiagramNodeRole>([
   "other",
 ]);
 
+export const DEFAULT_VISUAL_STYLE =
+  "High-fidelity vector diagram, clean technical schematic, corporate isometric blueprint";
+
 const METHOD_SECTION =
   /model|architect|encoder|decoder|attention|embed|position|train|optim|regular|feed-forward|method|figure/i;
 
@@ -77,6 +80,24 @@ export function mermaidFromDiagram(spec: {
   return lines.join("\n");
 }
 
+export function denseFluxPrompt(title: string, nodes: DiagramNode[]): string {
+  const places = nodes.map((node, index) => {
+    const place = index === 0 ? "top" : index === nodes.length - 1 ? "bottom" : "middle";
+    return `the text "${node.label}" clearly printed on the ${place} module`;
+  });
+  return [
+    `A clean, high-resolution technical diagram of ${title}.`,
+    DEFAULT_VISUAL_STYLE + ".",
+    "Boxes and arrows, crisp typography, no decorative art, no extra words.",
+    `Layout from top to bottom: ${places.join("; ")}.`,
+    ...nodes.map((node) => `The text "${node.label}" must be written in crisp, clean typography.`),
+  ].join(" ");
+}
+
+function promptQuotesLabels(prompt: string, labels: string[]): boolean {
+  return labels.every((label) => prompt.includes(`"${label}"`));
+}
+
 function words(value: string): string[] {
   return value
     .toLowerCase()
@@ -106,6 +127,11 @@ export type RawDiagram = {
   edges?: Array<{ from?: string; to?: string; label?: string | null }>;
   evidence_ids?: string[];
   warnings?: string[];
+  extracted_text_nodes?: string[];
+  visual_style?: string;
+  dense_flux_prompt?: string;
+  image_url?: string | null;
+  render?: string;
 };
 
 /**
@@ -115,7 +141,9 @@ export type RawDiagram = {
 export function groundDiagram(
   raw: RawDiagram,
   excerpts: { id: string; text: string }[],
-): { diagram: Omit<ChartSpec, "id" | "note" | "modelId" | "backend" | "elapsedMs"> } | { error: string } {
+): {
+  diagram: Omit<ChartSpec, "id" | "note" | "modelId" | "vlModelId" | "fluxModelId" | "backend" | "elapsedMs" | "imageUrl" | "render">;
+} | { error: string } {
   if (!raw.kind || !KINDS.has(raw.kind as ChartKind)) {
     return { error: "Diagram kind is missing or not supported." };
   }
@@ -183,6 +211,13 @@ export function groundDiagram(
     : mermaidFromDiagram({ nodes: diagramNodes, edges });
   if (!mermaidOk) warnings.push("Rebuilt the diagram from grounded nodes.");
 
+  const labels = diagramNodes.map((node) => node.label);
+  let fluxPrompt = typeof raw.dense_flux_prompt === "string" ? raw.dense_flux_prompt.trim() : "";
+  if (!fluxPrompt || !promptQuotesLabels(fluxPrompt, labels)) {
+    fluxPrompt = denseFluxPrompt(title, diagramNodes);
+    warnings.push("Rebuilt the FLUX prompt so every label is quoted.");
+  }
+
   return {
     diagram: {
       kind: raw.kind as ChartKind,
@@ -192,7 +227,12 @@ export function groundDiagram(
       nodes: diagramNodes,
       edges,
       evidence_ids,
-      warnings: [...new Set(warnings)].slice(0, 6),
+      warnings: [...new Set(warnings)].slice(0, 8),
+      extractedTextNodes: labels,
+      visualStyle: typeof raw.visual_style === "string" && raw.visual_style.trim()
+        ? raw.visual_style.trim().slice(0, 180)
+        : DEFAULT_VISUAL_STYLE,
+      denseFluxPrompt: fluxPrompt,
     },
   };
 }
@@ -211,7 +251,21 @@ export function noteForDiagram(
 }
 
 export function bundledChart(
-  spec: Omit<ChartSpec, "mermaid" | "modelId" | "backend" | "elapsedMs" | "warnings"> & {
+  spec: Omit<
+    ChartSpec,
+    | "mermaid"
+    | "modelId"
+    | "backend"
+    | "elapsedMs"
+    | "warnings"
+    | "extractedTextNodes"
+    | "visualStyle"
+    | "denseFluxPrompt"
+    | "imageUrl"
+    | "render"
+    | "vlModelId"
+    | "fluxModelId"
+  > & {
     warnings?: string[];
     mermaid?: string;
   },
@@ -220,6 +274,13 @@ export function bundledChart(
     ...spec,
     warnings: spec.warnings ?? [],
     mermaid: spec.mermaid ?? mermaidFromDiagram(spec),
+    extractedTextNodes: spec.nodes.map((node) => node.label),
+    visualStyle: DEFAULT_VISUAL_STYLE,
+    denseFluxPrompt: null,
+    imageUrl: null,
+    render: "bundled",
+    vlModelId: null,
+    fluxModelId: null,
     modelId: null,
     backend: "bundled",
     elapsedMs: null,

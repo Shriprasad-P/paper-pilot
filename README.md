@@ -2,7 +2,7 @@
 
 A reading desk for research papers. Upload a PDF or paste an arXiv, IEEE, or Springer link, then read a plain-language walkthrough, reconstructed charts, and an equation table. Ask Chart answers from retrieved excerpts of that paper only.
 
-This repository is the reading desk plus a local chart compiler. Ask, walkthroughs, and the sample library still use the stored excerpts. Methodology charts can be rebuilt on a Mac with MLX. Nothing here downloads weights for you, and chat embeddings are not called.
+This repository is a local reading desk for Apple Silicon. Mock mode uses stored excerpts and bundled diagrams. With mock mode off, a Mac runs Qwen3-VL, then FLUX, then a small local Ask model. Nothing here calls a cloud model.
 
 ## Run locally
 
@@ -38,41 +38,50 @@ On **Add paper**, try:
 
 `/` focuses Ask. Esc closes the drawer.
 
-## Methodology charts (local MLX)
+## Charts and Ask on a 24 GB M4 Pro
 
-Ready papers show Mermaid reconstructions. The Transformer sample ships with a bundled spec grounded in its stored excerpts, labeled as a bundled reconstruction, not a live model call. **Regenerate** on a Ready paper calls `scripts/chart_spec.py` when mock mode is off. The script asks the model for JSON (nodes, edges, evidence ids), drops any label that is not in the cited excerpt, and the page draws Mermaid. It does not display a model-painted raster.
+Mock mode on (the default) does not call a model. The Transformer charts are the bundled Mermaid reconstruction. Ask uses the stored notes.
 
-Partial, paywalled, failed, and Not parsed papers do not gain charts from this path.
+Mock mode off, on Apple Silicon:
 
-### Pick 4B or 27B
+1. `scripts/vlm_diagram_spec.py` loads only Qwen3-VL, writes JSON, and exits.
+2. Nodes whose labels are not in the cited excerpt are dropped. The FLUX prompt is rebuilt so every remaining label is inside double quotes.
+3. `scripts/flux_render.py` loads only FLUX, writes a WebP under `public/generated/`, and exits.
+4. If FLUX is missing or runs out of memory, the card shows Mermaid from that same JSON and says so.
+5. If the vision model is missing, Regenerate keeps the last chart and toasts. It does not invent a diagram.
+6. Ask indexes chunks with `nomic-embed-text`, then answers with `qwen2.5:1.5b` from the retrieved excerpts. Empty retrieval is a refusal.
 
-Settings → Chart model, after turning **Mock mode** off:
+Peak target is under 18 GB so macOS keeps headroom on a 24 GB machine. The 8B vision model and FLUX are never loaded together. If 8B runs out of memory, the vision sidecar retries the 4B model and the footer records which one ran.
 
-| Choice | Id | Memory |
+| Role | Id | Notes |
 | --- | --- | --- |
-| Default | `lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit` | About 3 GB. Use this on a 24 GB M4 Pro. |
-| Larger | `mlx-community/Qwen3.5-27B-4bit` | About 15 GB. Quit other large models first. A “Qwen 3.6” recollection maps to this Qwen3.5 family. |
-
-Environment overrides, if you launch the dev server yourself:
-
-```bash
-PAPER_LENS_VLM_MODEL=lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit
-PAPER_LENS_VLM_MODEL_LARGE=mlx-community/Qwen3.5-27B-4bit
-```
-
-The picker is the id that Regenerate sends. The env vars document the same defaults; the route allow-lists only those two MLX ids.
-
-On Apple Silicon, with the weights already in the Hugging Face cache:
+| Vision, default | `mlx-community/Qwen3-VL-8B-Instruct-4bit` | About 6 GB. Settings can switch this. |
+| Vision, low memory | `lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit` | About 3 GB. Also the automatic fallback. |
+| Render, default | `flux.1-schnell` | mflux name `schnell`, 4-bit, 4 steps. |
+| Render, optional | `flux.2-klein` | Used only when that mflux config is installed. |
+| Embeddings | `nomic-embed-text` | Ollama. After the chart sidecars exit. |
+| Ask | `qwen2.5:1.5b` | Ollama. Answers only from retrieved chunks. |
 
 ```bash
-pip install mlx-vlm
+pip install mlx-vlm mflux
+ollama pull nomic-embed-text
+ollama pull qwen2.5:1.5b
 ```
 
-The sidecar loads one model per run and exits, and it asks Ollama to unload resident models first. If MLX fails (wrong OS, missing `mlx-vlm`, or the weights will not load), it tries Ollama `qwen2.5vl:7b`. If that also fails, the Charts tab keeps the last good diagram and toasts “Couldn't build charts…”. Do not point this at the incomplete `mlx-community/Qwen3-4B-4bit` snapshot or a tokenizer-only folder.
+Download the MLX and FLUX weights into the Hugging Face cache before Regenerate. This repo does not download them.
 
-Chat (`Qwen/Qwen3-0.6B`), embeddings, the local endpoint, and the API key stay disabled in Settings. Ask still answers from the stored index.
+```bash
+PAPER_LENS_VLM_MODEL=mlx-community/Qwen3-VL-8B-Instruct-4bit
+PAPER_LENS_VLM_FALLBACK=lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit
+PAPER_LENS_FLUX_MODEL=flux.1-schnell
+PAPER_LENS_EMBED_MODEL=nomic-embed-text
+PAPER_LENS_ASK_MODEL=qwen2.5:1.5b
+PAPER_LENS_RAM_BUDGET_GB=18
+```
 
-Keys already in `localStorage` under `paper-lens-settings` are not sent.
+Set `PAPER_LENS_FLUX_MODEL=flux.2-klein` when that checkpoint is installed. Partial, paywalled, failed, and Not parsed papers never start this pipeline.
+
+The endpoint and API key in Settings stay disabled. Keys already in `localStorage` under `paper-lens-settings` are not sent.
 
 ## API surface
 
@@ -83,7 +92,9 @@ UI code talks to `PaperLensClient` in `src/lib/api/client.ts`:
 - `ingest`
 - `reprocess`
 - `ask` (scoped to the whole paper, one equation, or one chart; streams tokens)
-- `POST /api/charts` — Ready papers only; runs the chart sidecar
+- `POST /api/charts` — Ready papers only; vision JSON, then FLUX, as separate processes
+- `POST /api/index` — embed chunks for one paper
+- `POST /api/ask` — answer from retrieved chunks, or refuse
 
 The mock lives in `src/lib/paper-store.ts` and `src/lib/mock/`. Explanations are written against excerpt ids. If an answer has no excerpt, the client refuses instead of filling the gap.
 

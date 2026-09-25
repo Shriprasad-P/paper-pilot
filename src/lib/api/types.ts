@@ -97,7 +97,9 @@ export type ChartKind =
 
 export type DiagramNodeRole = "input" | "process" | "model" | "output" | "loss" | "other";
 
-export type ChartBackend = "bundled" | "mlx" | "ollama";
+export type ChartBackend = "bundled" | "mlx" | "ollama" | "flux";
+
+export type ChartRender = "bundled" | "flux" | "mermaid";
 
 export interface DiagramNode {
   id: string;
@@ -122,7 +124,19 @@ export interface ChartSpec {
   edges: DiagramEdge[];
   evidence_ids: string[];
   warnings: string[];
-  /** Null on the bundled sample reconstruction, before a local model runs. */
+  extractedTextNodes: string[];
+  visualStyle: string;
+  /** Null until a local FLUX render is requested. */
+  denseFluxPrompt: string | null;
+  /** Served from /generated when FLUX writes a file. */
+  imageUrl: string | null;
+  /** bundled = sample Mermaid. flux = rendered image. mermaid = fallback after a failed render. */
+  render: ChartRender;
+  /** Vision-language model that wrote the JSON. Null on the bundled sample. */
+  vlModelId: string | null;
+  /** FLUX checkpoint that painted the image. Null when the card is Mermaid. */
+  fluxModelId: string | null;
+  /** Same as vlModelId. Kept so older call sites still read a model id. */
   modelId: string | null;
   backend: ChartBackend | null;
   elapsedMs: number | null;

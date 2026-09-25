@@ -43,7 +43,7 @@ Views:
 
 1. **Overview** — abstract in serif, Problem / Method / Result cards marked “AI-generated explanation”, thumbnail of the main workflow chart, and an Ask paper field.
 2. **Walkthrough** — stepped sections. Order inside a section: plain explanation, then an analogy only if one exists (labeled as not a claim from the paper), then “Why this matters”, then “See in paper”. Simple / Standard / Deep hides the later layers. Math is KaTeX.
-3. **Charts** — skeleton, then one column of Mermaid cards (top-down, teal nodes, short labels). Every card says “AI reconstruction from the paper — not a publisher figure.” The footer names the source: the bundled sample, or the local MLX (or Ollama fallback) model id and elapsed time. Ask Chart stays at the top right. Regenerate calls the local compiler when mock mode is off and the paper is Ready; otherwise it toasts and keeps the current charts. A failed compile keeps the last good chart, or the empty “Couldn't build charts…” state when there was none. Partial, paywalled, and Not parsed papers do not gain invented charts. Clicking a chart opens a lightbox only. Ask Chart in the lightbox chrome closes the lightbox and opens the drawer, prefilled with “Explain this chart in the context of the paper.” Esc closes the lightbox first, then the drawer.
+3. **Charts** — skeleton, then one column of cards. The primary picture is a FLUX render of a vision-model JSON spec. Mermaid is the fallback when FLUX does not render, and it is also what the bundled Transformer sample shows before any model runs. Every card says “AI reconstruction from the paper — not a publisher figure.” The footer names the vision model, the FLUX model, and elapsed time when a live run produced the card. Ask Chart stays at the top right. Regenerate, with mock mode off on a Ready paper, runs Qwen3-VL to JSON, exits that process, then runs FLUX. A failed vision pass keeps the last good chart. A failed FLUX pass keeps Mermaid from the same nodes. Partial, paywalled, and Not parsed papers do not gain invented charts. Clicking a chart opens a lightbox only. Ask Chart in the lightbox chrome closes the lightbox and opens the drawer, prefilled with “Explain this chart in the context of the paper.” Esc closes the lightbox first, then the drawer.
 4. **Equations** — sortable, filterable table with a sticky header. Columns: #, equation, name, plain description (truncated, with Show more), location, Ask. Ask Chart stays in the row, not in a menu. Opening Equations from a walkthrough section filters to that section’s prefix; opening it from anywhere else starts at All. Empty state: “No equations detected — run extract again or mark pages manually.”
 5. **Sources** — excerpts collapsed by default. “See in paper” and “Show in Sources” on an evidence quote open the matching excerpt. A missing id toasts and does not invent text.
 
@@ -61,11 +61,13 @@ Suggested prompts: What is this? · Why is it used here? · How does it connect 
 
 Answers stream from the mock client, can be stopped, and attach an Evidence disclosure. “Show in Sources” jumps to that excerpt. If no excerpt is available, the reply says so and does not invent a passage.
 
-Settings shows a Mock mode banner. Mock mode on means models are not called; Ready-paper charts stay the bundled reconstruction. Turning mock mode off enables the chart-model picker (`Qwen3-VL-4B` MLX by default, or `Qwen3.5-27B` MLX). Chat, embeddings, the endpoint, and the API key stay disabled. A saved model id does not mean a cloud model is connected.
+Settings shows a Mock mode banner. Mock mode on means models are not called; Ready-paper charts stay the bundled reconstruction and Ask uses the stored notes. Turning mock mode off enables the vision picker (Qwen3-VL-8B MLX by default, Qwen3-VL-4B as low memory) and the FLUX picker (schnell by default, klein when installed). Ask then uses local embeddings and a small instruct model, and refuses when retrieval is empty. The endpoint and API key stay disabled. A saved model id does not mean a cloud model is connected.
+
+Chart generation never keeps the vision model and FLUX resident together. The budget is under 18 GB on a 24 GB Mac.
 
 ## What the mock will not do
 
 - It will not answer from outside the stored excerpts. Unrecognized questions fall back to the note already written for that scope, still with the same evidence ids.
 - It will not fill in a paywalled paper.
 - Uploaded PDFs are not parsed. Status, library line, sticky banners, and Ask prefixes all use **Not parsed** and name the bundled sample.
-- Charts are diagram specs rendered as Mermaid, not rasters. Node labels have to sit in a retrieved excerpt. The compiler does not invent a module the excerpts do not name.
+- Charts start as vision-model JSON. Node labels have to sit in a retrieved excerpt. FLUX is asked only for the labels that survive that filter. Mermaid is the fallback, not a second invented diagram.

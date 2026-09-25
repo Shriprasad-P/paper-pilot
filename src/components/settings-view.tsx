@@ -5,17 +5,23 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  ASK_MODEL,
   CHART_MODEL_OPTIONS,
   DEFAULT_CHART_SETTINGS,
+  EMBED_MODEL,
+  FLUX_MODEL_OPTIONS,
   SETTINGS_KEY,
   isChartModelId,
+  isFluxModelId,
   type ChartModelId,
+  type FluxModelId,
 } from "@/lib/charts/models";
 
 type Settings = {
   mode: "local" | "cloud";
   mockMode: boolean;
   chartModel: ChartModelId;
+  fluxModel: FluxModelId;
   chatModel: string;
   visionModel: string;
   embeddingModel: string;
@@ -26,6 +32,7 @@ const DEFAULTS: Settings = {
   mode: "local",
   mockMode: DEFAULT_CHART_SETTINGS.mockMode,
   chartModel: DEFAULT_CHART_SETTINGS.chartModel,
+  fluxModel: DEFAULT_CHART_SETTINGS.fluxModel,
   chatModel: "Qwen/Qwen3-0.6B",
   visionModel: "Qwen/Qwen3-VL-8B-Instruct",
   embeddingModel: "Qwen/Qwen3-Embedding-0.6B",
@@ -52,6 +59,10 @@ export function SettingsView() {
             typeof parsed.chartModel === "string" && isChartModelId(parsed.chartModel)
               ? parsed.chartModel
               : DEFAULTS.chartModel,
+          fluxModel:
+            typeof parsed.fluxModel === "string" && isFluxModelId(parsed.fluxModel)
+              ? parsed.fluxModel
+              : DEFAULTS.fluxModel,
         });
         setApiKey(parsed.apiKey ?? "");
       } catch {
@@ -81,11 +92,11 @@ export function SettingsView() {
       <h1 className="mt-1 font-serif text-4xl">Models</h1>
       <p className="mt-4 rounded-lg border border-amber-950 bg-amber-950 px-4 py-3 text-sm leading-6 font-medium text-amber-50">
         {settings.mockMode
-          ? "Mock mode is on. Models are not called. Charts stay the bundled reconstruction, and Ask uses the stored index."
-          : "Mock mode is off for charts. Regenerate on a Ready paper runs the selected local MLX model. Ask still uses the stored index."}
+          ? "Mock mode is on. Models are not called. Charts stay the bundled reconstruction, and Ask uses the stored notes."
+          : "Mock mode is off. Regenerate runs Qwen3-VL, unloads it, then FLUX. Ask retrieves excerpts with a local embedding model and answers only from those excerpts."}
       </p>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Chart generation is a local MLX compiler: excerpts in, a diagram spec out, Mermaid on the Charts tab. Cloud endpoint and API key stay off. Chat and embeddings are not wired.
+        One heavy model at a time. Budget is under 18 GB on a 24 GB Mac. If the 8B vision model runs out of memory, the sidecar retries the 4B model. If FLUX cannot render, the card keeps Mermaid from the same JSON. Cloud endpoint and API key stay off.
       </p>
 
       <div className="mt-6 flex items-center gap-3">
@@ -104,7 +115,7 @@ export function SettingsView() {
       <label className="mt-6 block text-sm">
         <span className="font-medium">Chart model</span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
-          Used only when mock mode is off. Default is the 4B vision model. The 27B option needs about 15 GB; on a 24 GB M4 Pro, unload other models first. If MLX fails to load, the compiler tries Ollama <span className="font-mono">qwen2.5vl:7b</span>.
+          Used only when mock mode is off. 8B is the default. 4B is the low-memory choice and the automatic fallback.
         </span>
         <select
           value={settings.chartModel}
@@ -129,24 +140,50 @@ export function SettingsView() {
         </span>
       </label>
 
+      <label className="mt-6 block text-sm">
+        <span className="font-medium">FLUX model</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          Renders the diagram after the vision model has exited. Schnell is the default. Klein is used only when that checkpoint is installed.
+        </span>
+        <select
+          value={settings.fluxModel}
+          disabled={!ready || settings.mockMode}
+          onChange={(event) => {
+            const fluxModel = event.target.value;
+            if (isFluxModelId(fluxModel)) persist({ ...settings, fluxModel });
+          }}
+          className="mt-1 h-11 w-full rounded-lg border bg-card px-3 font-mono text-xs disabled:opacity-60"
+        >
+          {FLUX_MODEL_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span className="mt-1 block text-xs text-muted-foreground">
+          {FLUX_MODEL_OPTIONS.find((option) => option.id === settings.fluxModel)?.note} Ask uses{" "}
+          <span className="font-mono">{EMBED_MODEL}</span> and <span className="font-mono">{ASK_MODEL}</span> after the chart models are unloaded.
+        </span>
+      </label>
+
       <fieldset className="mt-6 space-y-4" disabled={!ready}>
         <Field
           label="Chat model"
-          hint="Not called. Ask still uses the stored index."
+          hint="Not the Ask model. Ask uses the local Ollama id shown above when mock mode is off."
           value={settings.chatModel}
           disabled
           onChange={(chatModel) => setSettings((current) => ({ ...current, chatModel }))}
         />
         <Field
           label="Vision model"
-          hint="Not the chart compiler. Charts use the MLX id above."
+          hint="Not called. Charts use the Qwen3-VL id above."
           value={settings.visionModel}
           disabled
           onChange={(visionModel) => setSettings((current) => ({ ...current, visionModel }))}
         />
         <Field
           label="Embedding model"
-          hint="Not called. Retrieval stays on the stored excerpts."
+          hint="Not this id. Retrieval uses nomic-embed-text when mock mode is off."
           value={settings.embeddingModel}
           disabled
           onChange={(embeddingModel) => setSettings((current) => ({ ...current, embeddingModel }))}

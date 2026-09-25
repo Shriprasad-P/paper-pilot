@@ -6,6 +6,8 @@ import type { AskScope, PaperRecord } from "@/lib/api/types";
 import { scopeLabel, suggestedPrompts } from "@/lib/api/ask";
 import { SAMPLE_ASK_NOTE } from "@/lib/paper-store";
 import { paperLensClient } from "@/lib/api/client";
+import { readChartSettings } from "@/lib/charts/models";
+import { askWithLocalRag } from "@/lib/charts/rag-client";
 import { getThread, setThread, usePaperStore } from "@/lib/paper-store";
 import { AskChartMark } from "@/components/ask-chart-button";
 import { EvidenceQuote } from "@/components/evidence-quote";
@@ -99,34 +101,64 @@ export function AskDrawer({
     abortRef.current = controller;
     setBusy(true);
     try {
-      const result = await paperLensClient.ask({
-        paperId: paper.summary.id,
-        scope,
-        question,
-        signal: controller.signal,
-        onMeta: ({ evidenceIds }) => {
-          const current = getThread(paper.summary.id, scope);
-          setThread(
-            paper.summary.id,
+      const settings = readChartSettings();
+      const result = settings.mockMode
+        ? await paperLensClient.ask({
+            paperId: paper.summary.id,
             scope,
-            current.map((message) =>
-              message.id === assistantId ? { ...message, evidenceIds } : message,
-            ),
-          );
-        },
-        onToken: (token) => {
-          const current = getThread(paper.summary.id, scope);
-          setThread(
-            paper.summary.id,
+            question,
+            signal: controller.signal,
+            onMeta: ({ evidenceIds }) => {
+              const current = getThread(paper.summary.id, scope);
+              setThread(
+                paper.summary.id,
+                scope,
+                current.map((message) =>
+                  message.id === assistantId ? { ...message, evidenceIds } : message,
+                ),
+              );
+            },
+            onToken: (token) => {
+              const current = getThread(paper.summary.id, scope);
+              setThread(
+                paper.summary.id,
+                scope,
+                current.map((message) =>
+                  message.id === assistantId
+                    ? { ...message, content: message.content + token }
+                    : message,
+                ),
+              );
+            },
+          })
+        : await askWithLocalRag({
+            paper,
             scope,
-            current.map((message) =>
-              message.id === assistantId
-                ? { ...message, content: message.content + token }
-                : message,
-            ),
-          );
-        },
-      });
+            question,
+            signal: controller.signal,
+            onMeta: ({ evidenceIds }) => {
+              const current = getThread(paper.summary.id, scope);
+              setThread(
+                paper.summary.id,
+                scope,
+                current.map((message) =>
+                  message.id === assistantId ? { ...message, evidenceIds } : message,
+                ),
+              );
+            },
+            onToken: (token) => {
+              const current = getThread(paper.summary.id, scope);
+              setThread(
+                paper.summary.id,
+                scope,
+                current.map((message) =>
+                  message.id === assistantId
+                    ? { ...message, content: message.content + token }
+                    : message,
+                ),
+              );
+            },
+          });
       const current = getThread(paper.summary.id, scope);
       setThread(
         paper.summary.id,

@@ -42,7 +42,7 @@ export function ChartCard({
         onClick={onOpen}
         className="mx-3 mt-3 rounded-lg bg-muted/40 px-2 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        <MermaidFigure source={chart.mermaid} className="overflow-x-auto [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full" />
+        <ChartVisual chart={chart} />
         <span className="sr-only">Open {chart.title}</span>
       </button>
       <div className="space-y-2 px-4 pt-3 pb-4">
@@ -56,11 +56,31 @@ export function ChartCard({
   );
 }
 
+export function ChartVisual({ chart }: { chart: ChartSpec }) {
+  if (chart.imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={chart.imageUrl} alt="" className="mx-auto h-auto w-full" />
+    );
+  }
+  return (
+    <div>
+      {chart.render === "mermaid" ? (
+        <p className="mb-2 text-xs text-muted-foreground">Mermaid fallback. FLUX did not render this diagram.</p>
+      ) : null}
+      <MermaidFigure source={chart.mermaid} className="overflow-x-auto [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full" />
+    </div>
+  );
+}
+
 export function ChartFooter({ chart }: { chart: ChartSpec }) {
+  const elapsed = chart.elapsedMs != null ? ` · ${(chart.elapsedMs / 1000).toFixed(1)}s` : "";
   const source =
-    chart.modelId && chart.backend && chart.backend !== "bundled"
-      ? `${chart.modelId}${chart.elapsedMs != null ? ` · ${(chart.elapsedMs / 1000).toFixed(1)}s` : ""}`
-      : "Bundled sample reconstruction · not a live model call";
+    chart.render === "bundled" || !chart.vlModelId
+      ? "Bundled sample reconstruction · not a live model call"
+      : chart.fluxModelId
+        ? `${chart.vlModelId} · ${chart.fluxModelId}${elapsed}`
+        : `${chart.vlModelId} · Mermaid fallback${elapsed}`;
   return (
     <div className="space-y-1">
       <p className="font-mono text-[11px] leading-5 text-muted-foreground">{source}</p>

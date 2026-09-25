@@ -1,29 +1,55 @@
-export const DEFAULT_VLM_MODEL =
-  "lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit";
+export const VLM_8B_MODEL = "mlx-community/Qwen3-VL-8B-Instruct-4bit";
 
-export const LARGE_VLM_MODEL = "mlx-community/Qwen3.5-27B-4bit";
+export const VLM_4B_MODEL = "lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit";
 
-export const OLLAMA_FALLBACK_MODEL = "qwen2.5vl:7b";
+export const FLUX_SCHNELL = "flux.1-schnell";
+
+export const FLUX_KLEIN = "flux.2-klein";
+
+export const EMBED_MODEL = "nomic-embed-text";
+
+export const ASK_MODEL = "qwen2.5:1.5b";
+
+export const RAM_BUDGET_GB = 18;
 
 export const CHART_MODEL_OPTIONS = [
   {
-    id: DEFAULT_VLM_MODEL,
-    label: "Qwen3-VL-4B MLX 4-bit",
-    note: "Default. About 3 GB in the Hugging Face cache. Prefer this on a 24 GB Mac.",
+    id: VLM_8B_MODEL,
+    label: "Qwen3-VL-8B MLX 4-bit",
+    note: "Default when memory allows. Loaded alone, then exited before FLUX. About 6 GB.",
   },
   {
-    id: LARGE_VLM_MODEL,
-    label: "Qwen3.5-27B MLX 4-bit",
-    note: "About 15 GB. On a 24 GB M4 Pro, quit other large models first. A “Qwen 3.6” recollection maps to this Qwen3.5 family.",
+    id: VLM_4B_MODEL,
+    label: "Qwen3-VL-4B MLX 4-bit (low memory)",
+    note: "Also the automatic fallback if 8B runs out of memory. About 3 GB.",
+  },
+] as const;
+
+export const FLUX_MODEL_OPTIONS = [
+  {
+    id: FLUX_SCHNELL,
+    label: "FLUX.1 schnell",
+    note: "Default renderer. 4-bit, few steps, loaded only after the vision sidecar exits.",
+  },
+  {
+    id: FLUX_KLEIN,
+    label: "FLUX.2 klein",
+    note: "Use when that checkpoint is installed. Same rule: never resident with the vision model.",
   },
 ] as const;
 
 export type ChartModelId = (typeof CHART_MODEL_OPTIONS)[number]["id"];
+export type FluxModelId = (typeof FLUX_MODEL_OPTIONS)[number]["id"];
 
 const ALLOWED = new Set<string>(CHART_MODEL_OPTIONS.map((option) => option.id));
+const FLUX_ALLOWED = new Set<string>(FLUX_MODEL_OPTIONS.map((option) => option.id));
 
 export function isChartModelId(value: string): value is ChartModelId {
   return ALLOWED.has(value);
+}
+
+export function isFluxModelId(value: string): value is FluxModelId {
+  return FLUX_ALLOWED.has(value);
 }
 
 export const SETTINGS_KEY = "paper-lens-settings";
@@ -31,11 +57,13 @@ export const SETTINGS_KEY = "paper-lens-settings";
 export type ChartSettings = {
   mockMode: boolean;
   chartModel: ChartModelId;
+  fluxModel: FluxModelId;
 };
 
 export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   mockMode: true,
-  chartModel: DEFAULT_VLM_MODEL,
+  chartModel: VLM_8B_MODEL,
+  fluxModel: FLUX_SCHNELL,
 };
 
 export function readChartSettings(): ChartSettings {
@@ -43,12 +71,19 @@ export function readChartSettings(): ChartSettings {
   const raw = window.localStorage.getItem(SETTINGS_KEY);
   if (!raw) return DEFAULT_CHART_SETTINGS;
   try {
-    const parsed = JSON.parse(raw) as { mockMode?: boolean; chartModel?: string };
+    const parsed = JSON.parse(raw) as {
+      mockMode?: boolean;
+      chartModel?: string;
+      fluxModel?: string;
+    };
     return {
       mockMode: parsed.mockMode !== false,
       chartModel: parsed.chartModel && isChartModelId(parsed.chartModel)
         ? parsed.chartModel
-        : DEFAULT_VLM_MODEL,
+        : DEFAULT_CHART_SETTINGS.chartModel,
+      fluxModel: parsed.fluxModel && isFluxModelId(parsed.fluxModel)
+        ? parsed.fluxModel
+        : DEFAULT_CHART_SETTINGS.fluxModel,
     };
   } catch {
     return DEFAULT_CHART_SETTINGS;

@@ -1,6 +1,11 @@
-import { spawn } from "node:child_process";
-import path from "node:path";
-import { isChartModelId, DEFAULT_VLM_MODEL } from "@/lib/charts/models";
+import {
+  FLUX_SCHNELL,
+  VLM_4B_MODEL,
+  VLM_8B_MODEL,
+  isChartModelId,
+  isFluxModelId,
+} from "@/lib/charts/models";
+import { parseSidecar, runPython } from "@/lib/charts/sidecar";
 import { groundDiagram, noteForDiagram, type RawDiagram } from "@/lib/charts/spec";
 import type { ChartSpec } from "@/lib/api/types";
 
@@ -8,39 +13,19 @@ export const runtime = "nodejs";
 
 type Excerpt = { id: string; section?: string; page?: number | null; text: string };
 
-function runSidecar(payload: unknown): Promise<{ code: number; stdout: string; stderr: string }> {
-  const script = path.join(process.cwd(), "scripts", "chart_spec.py");
-  return new Promise((resolve, reject) => {
-    const child = spawn("python3", [script], { stdio: ["pipe", "pipe", "pipe"] });
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("Chart compiler timed out."));
-    }, 180_000);
-    child.stdout.on("data", (chunk) => out.push(chunk));
-    child.stderr.on("data", (chunk) => err.push(chunk));
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({
-        code: code ?? 1,
-        stdout: Buffer.concat(out).toString("utf8"),
-        stderr: Buffer.concat(err).toString("utf8"),
-      });
-    });
-    child.stdin.write(JSON.stringify(payload));
-    child.stdin.end();
-  });
-}
+type PipelineChart = RawDiagram & {
+  image_url?: string | null;
+  render?: string;
+  vl_model?: string | null;
+  flux_model?: string | null;
+};
 
 export async function POST(request: Request) {
   let body: {
     status?: string;
+    paperId?: string;
     model?: string;
+    fluxModel?: string;
     excerpts?: Excerpt[];
   };
   try {
@@ -65,7 +50,14 @@ export async function POST(request: Request) {
       ? body.model
       : envModel && isChartModelId(envModel)
         ? envModel
-        : DEFAULT_VLM_MODEL;
+        : VLM_8B_MODEL;
+  const envFlux = process.env.PAPER_LENS_FLUX_MODEL;
+  const fluxModel =
+    body.fluxModel && isFluxModelId(body.fluxModel)
+      ? body.fluxModel
+      : envFlux && isFluxModelId(envFlux)
+        ? envFlux
+        : FLUX_SCHNELL;
   const excerpts = (body.excerpts ?? [])
     .filter((item) => item && typeof item.id === "string" && typeof item.text === "string")
     .slice(0, 16)
@@ -83,33 +75,41 @@ export async function POST(request: Request) {
     );
   }
 
-  let result: { code: number; stdout: string; stderr: string };
+  let result: { stdout: string };
   try {
-    result = await runSidecar({ model, excerpts });
+    result = await runPython(
+      "chart_pipeline.py",
+      {
+        status: "ready",
+        paper_id: body.paperId ?? "paper",
+        model,
+        fallback: process.env.PAPER_LENS_VLM_FALLBACK || VLM_4B_MODEL,
+        flux_model: fluxModel,
+        excerpts,
+      },
+      360_000,
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Chart compiler failed.";
+    const message = error instanceof Error ? error.message : "Chart pipeline failed.";
     return Response.json(
       { error: `Couldn't build charts from the method section. ${message}` },
       { status: 503 },
     );
   }
 
-  let parsed: {
+  const parsed = parseSidecar<{
     ok?: boolean;
     error?: string;
     code?: string;
     model?: string;
-    backend?: "mlx" | "ollama";
+    flux_model?: string;
     elapsed_ms?: number;
-    charts?: RawDiagram[];
-  };
-  try {
-    parsed = JSON.parse(result.stdout);
-  } catch {
+    charts?: PipelineChart[];
+  }>(result.stdout);
+
+  if (!parsed) {
     return Response.json(
-      {
-        error: "Couldn't build charts from the method section. The compiler did not return JSON.",
-      },
+      { error: "Couldn't build charts from the method section. The compiler did not return JSON." },
       { status: 503 },
     );
   }
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error: unavailable
-          ? "Couldn't build charts from the method section. Local MLX is not available on this machine, and the Ollama fallback did not respond."
+          ? "Couldn't build charts from the method section. Local MLX is not available on this machine."
           : parsed.error ?? "Couldn't build charts from the method section.",
         model: parsed.model ?? model,
       },
@@ -132,13 +132,26 @@ export async function POST(request: Request) {
     const grounded = groundDiagram(raw, excerpts);
     if ("error" in grounded) continue;
     const diagram = grounded.diagram;
+    const labels = diagram.nodes.map((node) => node.label);
+    const sameLabels =
+      Array.isArray(raw.extracted_text_nodes) &&
+      raw.extracted_text_nodes.length === labels.length &&
+      raw.extracted_text_nodes.every((label, labelIndex) => label === labels[labelIndex]);
+    const fluxImage = sameLabels && raw.render === "flux" && raw.image_url ? raw.image_url : null;
     charts.push({
       ...diagram,
       id: `chart-${diagram.kind}-${index}`,
-      modelId: parsed.model ?? model,
-      backend: parsed.backend === "ollama" ? "ollama" : "mlx",
+      imageUrl: fluxImage,
+      render: fluxImage ? "flux" : "mermaid",
+      vlModelId: raw.vl_model ?? parsed.model ?? model,
+      fluxModelId: fluxImage ? raw.flux_model ?? parsed.flux_model ?? fluxModel : null,
+      modelId: raw.vl_model ?? parsed.model ?? model,
+      backend: fluxImage ? "flux" : "mlx",
       elapsedMs: typeof parsed.elapsed_ms === "number" ? parsed.elapsed_ms : null,
       note: noteForDiagram(diagram),
+      warnings: fluxImage
+        ? diagram.warnings
+        : [...diagram.warnings, "FLUX did not render. Showing the Mermaid diagram from the same nodes."].slice(0, 8),
     });
   }
 
@@ -152,7 +165,7 @@ export async function POST(request: Request) {
   return Response.json({
     charts,
     model: parsed.model ?? model,
-    backend: parsed.backend ?? "mlx",
+    fluxModel: parsed.flux_model ?? fluxModel,
     elapsedMs: parsed.elapsed_ms ?? null,
   });
 }
