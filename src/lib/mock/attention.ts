@@ -31,6 +31,7 @@ export const attentionPaper: PaperRecord = {
     chartCount: 3,
     warnings: [],
     badge: null,
+    statusHelp: null,
   },
   abstract:
     "The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
@@ -116,6 +117,7 @@ export const attentionPaper: PaperRecord = {
       analogy:
         "Each query is a question. Each key is a label on another token. The softmax is how much of the answer (the value) you copy over. Dividing by $\\sqrt{d_k}$ turns the volume down so one label cannot shout the others out. Trust the formula in the equation table if this picture and the text ever disagree.",
       evidenceIds: ["c-attn-scale", "c-attn-why-scale", "c-mha", "c-mha-dims"],
+      equationPrefix: "3.2",
     },
     {
       id: "ffn-pos",
@@ -131,6 +133,7 @@ export const attentionPaper: PaperRecord = {
       analogy:
         "Think of attention as a meeting where everyone can hear everyone, and the feed-forward layer as each person writing up their own notes afterward with the same worksheet.",
       evidenceIds: ["c-ffn", "c-pos", "c-pos-sum", "c-embed-scale"],
+      equationPrefix: "3",
     },
     {
       id: "training",
@@ -145,6 +148,7 @@ export const attentionPaper: PaperRecord = {
         "The base configuration and the big configuration differ in width, dropout, and how long they train. The walkthrough does not invent hardware details beyond the results passage stored below.",
       analogy: null,
       evidenceIds: ["c-train-opt", "c-train-lr", "c-label"],
+      equationPrefix: "5.3",
     },
     {
       id: "results",

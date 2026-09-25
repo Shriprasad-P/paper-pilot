@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { RefreshCw, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { AskScope, DetailLevel } from "@/lib/api/types";
 import { paperLensClient } from "@/lib/api/client";
-import { getPaper, reprocess, usePaperStore } from "@/lib/paper-store";
+import { getJob, getPaper, ingest, reprocess, stageLabel, usePaperStore } from "@/lib/paper-store";
+import { CompactPdfDrop } from "@/components/ingest-dropzone";
 import { AskChartButton } from "@/components/ask-chart-button";
 import { AskDrawer } from "@/components/ask-drawer";
 import { ChartCard } from "@/components/chart-card";
@@ -26,6 +28,9 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+
+const COACH_KEY = "paper-lens-ask-coach-dismissed";
+const CHART_PREFILL = "Explain this chart in the context of the paper.";
 
 const VIEWS = [
   ["overview", "Overview"],
@@ -48,6 +53,9 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
   const [focusChunk, setFocusChunk] = useState<string | null>(null);
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [autoSendKey, setAutoSendKey] = useState(0);
+  const [sectionContext, setSectionContext] = useState<string | null>(null);
+  const [equationSection, setEquationSection] = useState("all");
+  const [showCoach, setShowCoach] = useState(false);
   const [chartsReady, setChartsReady] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -56,6 +64,12 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
     const timer = window.setTimeout(() => setChartsReady(true), 700);
     return () => window.clearTimeout(timer);
   }, [paperId]);
+
+  useEffect(() => {
+    if (paper?.summary.status !== "ready") return;
+    if (window.localStorage.getItem(COACH_KEY) === "1") return;
+    setShowCoach(true);
+  }, [paper?.summary.id, paper?.summary.status]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -68,22 +82,52 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
         event.preventDefault();
         openAsk({ kind: "paper" });
       }
-      if (event.key === "Escape" && askOpen) {
-        setAskOpen(false);
+      if (event.key === "Escape") {
+        if (lightboxId) {
+          setLightboxId(null);
+          return;
+        }
+        if (askOpen) setAskOpen(false);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [askOpen]);
+  }, [askOpen, lightboxId]);
 
   useEffect(() => {
     if (askOpen) inputRef.current?.focus();
   }, [askOpen, scope]);
 
   function openAsk(next: AskScope, prefill?: string) {
+    setLightboxId(null);
     setScope(next);
     if (prefill !== undefined) setDraft(prefill);
     setAskOpen(true);
+  }
+
+  function dismissCoach() {
+    window.localStorage.setItem(COACH_KEY, "1");
+    setShowCoach(false);
+  }
+
+  function selectView(next: ViewId) {
+    if (next === "equations") {
+      setEquationSection(view === "walkthrough" && sectionContext ? sectionContext : "all");
+    }
+    setView(next);
+  }
+
+  function showInSources(chunkId: string) {
+    if (!paper?.chunks.some((chunk) => chunk.id === chunkId)) {
+      toast("That excerpt isn’t in Sources.");
+      return;
+    }
+    setFocusChunk(chunkId);
+    setView("sources");
+    setAskOpen(false);
+    window.setTimeout(() => {
+      document.getElementById(`chunk-${chunkId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
   }
 
   if (!paper) {
@@ -123,9 +167,12 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
           toast("Reprocessing. The status pill stays on Indexing until the pass finishes.");
         }}
       />
-      {paper.demoNote ? (
-        <p className="border-b bg-amber-700/10 px-4 py-2 text-sm leading-6 text-amber-950 md:px-6">
-          {paper.demoNote}
+      {showCoach && paper.summary.status === "ready" ? (
+        <p className="flex flex-wrap items-center justify-between gap-2 border-b bg-foreground px-4 py-2 text-sm text-background md:px-6">
+          <span>Click Ask Chart on any equation.</span>
+          <button type="button" className="underline" onClick={dismissCoach}>
+            Dismiss
+          </button>
         </p>
       ) : null}
       {paper.summary.status === "partial" ? (
@@ -141,7 +188,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
             <button
               key={id}
               type="button"
-              onClick={() => setView(id)}
+              onClick={() => selectView(id)}
               className={cn(
                 "rounded-lg px-3 py-2 text-left text-sm",
                 view === id ? "bg-primary/10 font-medium text-primary" : "hover:bg-muted",
@@ -159,7 +206,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
               <button
                 key={id}
                 type="button"
-                onClick={() => setView(id)}
+                onClick={() => selectView(id)}
                 className={cn(
                   "shrink-0 rounded-full px-3 py-1.5 text-sm",
                   view === id ? "bg-primary text-primary-foreground" : "bg-muted",
@@ -180,7 +227,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                 mainChart={mainChart}
                 levelNote={paper.pageNote}
                 onOpenChart={() => {
-                  setView("charts");
+                  selectView("charts");
                 }}
                 onAsk={(question) => {
                   openAsk({ kind: "paper" }, question);
@@ -189,6 +236,9 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
               />
             ) : view === "walkthrough" ? (
               <div className="mx-auto max-w-3xl">
+                {paper.summary.status === "unparsed" && paper.demoNote ? (
+                  <SampleBanner text={paper.demoNote} />
+                ) : null}
                 <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-xs font-medium tracking-wide text-primary uppercase">
@@ -228,6 +278,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                     level={level}
                     defaultOpen={index === 0}
                     onSeeInPaper={seeInPaper}
+                    onFocusSection={setSectionContext}
                   />
                 ))}
               </div>
@@ -241,17 +292,17 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                   setChartsReady(false);
                   window.setTimeout(() => setChartsReady(true), 900);
                 }}
-                onAsk={(chartId) => openAsk({ kind: "chart", chartId })}
+                onAsk={(chartId) => openAsk({ kind: "chart", chartId }, CHART_PREFILL)}
                 onOpen={(chartId) => {
+                  setAskOpen(false);
                   setLightboxId(chartId);
-                  openAsk(
-                    { kind: "chart", chartId },
-                    "Explain this chart in the context of the paper.",
-                  );
                 }}
               />
             ) : view === "equations" ? (
               <div className="mx-auto max-w-6xl">
+                {paper.summary.status === "unparsed" && paper.demoNote ? (
+                  <SampleBanner text={paper.demoNote} />
+                ) : null}
                 <h2 className="font-serif text-2xl">Equations</h2>
                 <p className="mt-1 mb-5 max-w-2xl text-sm leading-6 text-muted-foreground">
                   Each description is tied to a retrieved excerpt. Ask Chart opens a thread for that row only.
@@ -260,6 +311,9 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                   equations={paperLensClient.getEquations(paper.summary.id).equations}
                   warnings={paperLensClient.getEquations(paper.summary.id).warnings}
                   activeEquationId={askOpen ? activeEquationId : null}
+                  initialSection={equationSection}
+                  showCoach={showCoach && paper.summary.status === "ready"}
+                  onDismissCoach={dismissCoach}
                   onAsk={(equation) => openAsk({ kind: "equation", equationId: equation.id })}
                   onRetry={() => {
                     reprocess(paper.summary.id);
@@ -307,6 +361,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
           onClose={() => setAskOpen(false)}
           inputRef={inputRef}
           autoSendKey={autoSendKey}
+          onShowInSources={showInSources}
         />
       </div>
 
@@ -338,17 +393,13 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                 AI-reconstructed diagram
               </p>
               <MermaidFigure source={lightbox.mermaid} className="overflow-x-auto" />
-              <Button
-                className="h-11 w-fit"
-                onClick={() =>
-                  openAsk(
-                    { kind: "chart", chartId: lightbox.id },
-                    "Explain this chart in the context of the paper.",
-                  )
-                }
-              >
-                Ask about this chart
-              </Button>
+              <div className="flex items-center gap-3">
+                <AskChartButton
+                  label={`Ask about ${lightbox.title}`}
+                  onClick={() => openAsk({ kind: "chart", chartId: lightbox.id }, CHART_PREFILL)}
+                />
+                <p className="text-sm text-muted-foreground">Ask Chart about this diagram</p>
+              </div>
             </>
           ) : null}
         </DialogContent>
@@ -373,6 +424,9 @@ function Overview({
   const [question, setQuestion] = useState("");
   return (
     <div className="mx-auto max-w-5xl space-y-8">
+      {paper.summary.status === "unparsed" && paper.demoNote ? (
+        <SampleBanner text={paper.demoNote} />
+      ) : null}
       <form
         className="flex flex-col gap-2 sm:flex-row"
         onSubmit={(event) => {
@@ -502,6 +556,14 @@ function ChartsView({
   );
 }
 
+function SampleBanner({ text }: { text: string }) {
+  return (
+    <p className="sticky top-0 z-20 -mx-4 mb-6 border-y border-amber-950 bg-amber-950 px-4 py-3 text-sm leading-6 font-medium text-amber-50 md:-mx-8 md:px-8">
+      {text}
+    </p>
+  );
+}
+
 function BlockedState({
   paperTitle,
   detail,
@@ -509,19 +571,43 @@ function BlockedState({
 }: {
   paperTitle: string;
   detail: string;
-  status: "paywalled" | "failed" | "indexing" | "ready" | "partial";
+  status: "paywalled" | "failed" | "indexing" | "ready" | "partial" | "unparsed";
 }) {
+  const router = useRouter();
+  usePaperStore();
+  const [jobId, setJobId] = useState<string | null>(null);
+  const job = jobId ? getJob(jobId) : null;
+
+  useEffect(() => {
+    if (job?.done && job.paperId && !job.error) {
+      router.push(`/papers/${job.paperId}`);
+    }
+  }, [job, router]);
+
   return (
-    <div className="mx-auto max-w-lg py-16 text-center">
+    <div className="mx-auto max-w-lg py-12 text-center">
       <StatusPill status={status} detail={detail} />
       <h2 className="mt-4 font-serif text-3xl">{paperTitle}</h2>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">{detail}</p>
+      <p className="mt-3 text-sm leading-6 text-foreground">{detail}</p>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
         No walkthrough, equations, or charts are shown, because no text was retrieved.
       </p>
-      <Button className="mt-6 h-11" nativeButton={false} render={<Link href="/ingest" />}>
-        <Upload className="size-4" />
-        Upload PDF instead
+      <div className="mt-6 text-left">
+        <CompactPdfDrop
+          busy={Boolean(job && !job.done)}
+          onFile={(file) => {
+            const [created] = ingest([{ kind: "pdf", name: file.name, provider: "pdf" }]);
+            setJobId(created.id);
+          }}
+        />
+        {job && !job.done ? (
+          <p className="mt-3 text-center text-sm text-muted-foreground">
+            {stageLabel(job.stage === "failed" ? "fetching" : job.stage, "pdf")}
+          </p>
+        ) : null}
+      </div>
+      <Button className="mt-4 h-11" variant="outline" nativeButton={false} render={<Link href="/ingest" />}>
+        Or add it from the ingest screen
       </Button>
     </div>
   );

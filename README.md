@@ -34,7 +34,7 @@ On **Add paper**, try:
 - `https://arxiv.org/abs/1706.03762`
 - `https://arxiv.org/abs/1810.04805`
 - any `ieeexplore.ieee.org` or Springer URL (paywall message)
-- a PDF (processing reaches Ready, then a banner explains that the file was not parsed and the Transformer sample is shown)
+- a PDF (processing finishes as Not parsed: the library and workspace say the file was not read and show the bundled Transformer sample)
 
 `/` focuses Ask. Esc closes the drawer.
 

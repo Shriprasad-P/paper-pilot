@@ -1,15 +1,10 @@
 "use client";
 
-import { Download, RefreshCw, Share2 } from "lucide-react";
+import { Download, Link2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { PaperRecord } from "@/lib/api/types";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 function toMarkdown(paper: PaperRecord): string {
   const lines: string[] = [
@@ -75,7 +70,11 @@ export function PaperHeader({
           <h1 className="font-serif text-xl leading-tight text-balance md:text-2xl">
             {paper.summary.title}
           </h1>
-          <StatusPill status={paper.summary.status} detail={paper.summary.statusDetail} />
+          <StatusPill
+            status={paper.summary.status}
+            detail={paper.summary.statusDetail}
+            help={paper.summary.statusHelp}
+          />
         </div>
         <p className="mt-1 truncate text-sm text-muted-foreground">
           {meta || paper.summary.sourceLabel}
@@ -96,17 +95,20 @@ export function PaperHeader({
           <Download className="size-4" />
           Export
         </Button>
-        <Tooltip>
-          <TooltipTrigger
-            render={<span className="inline-flex" tabIndex={0} />}
-          >
-            <Button variant="outline" className="h-10" disabled>
-              <Share2 className="size-4" />
-              Share
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Sharing is not available yet</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="outline"
+          className="h-10"
+          onClick={() => {
+            const url = `${window.location.origin}/papers/${paper.summary.id}`;
+            void navigator.clipboard.writeText(url).then(
+              () => toast.success("Copied local link."),
+              () => toast.error("Couldn’t copy the link."),
+            );
+          }}
+        >
+          <Link2 className="size-4" />
+          Copy local link
+        </Button>
       </div>
     </div>
   );

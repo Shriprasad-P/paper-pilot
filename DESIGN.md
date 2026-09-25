@@ -14,6 +14,10 @@ Dark mode is optional from Settings. It does not change layout.
 
 A short desk introduction, search, and a list of papers. Each row shows title (serif), authors, year, venue, source, equation count, chart count, and a status pill. The IEEE example is a paywalled row with no invented abstract.
 
+Partial rows keep the Partial pill and add a secondary line that matches the workspace: “Text ready · equations failed · charts failed.” The pill tooltip says which surfaces work.
+
+Uploaded PDFs use the status **Not parsed** (never Ready). The row title is the filename. The secondary line names the bundled sample (Attention Is All You Need, Vaswani et al., 2017) and says the file was not read.
+
 ### Ingest (`/ingest`)
 
 - Large PDF dropzone, multi-file, non-PDFs rejected with a plain error.
@@ -23,7 +27,7 @@ A short desk introduction, search, and a list of papers. Each row shows title (s
 - IEEE and Springer stop on Fetching with “Paywalled — upload PDF instead” and a Retry action.
 - BERT (`1810.04805`) finishes Partial, with “Couldn't parse equations on page 4” and a chart failure.
 - Unknown hosts fail with “Couldn’t retrieve full text from this host. Upload the PDF instead.”
-- A PDF upload reaches Ready and opens a workspace that **says the file was not parsed** and shows the bundled Vaswani et al. excerpts. It does not pretend the upload was read.
+- A PDF upload finishes in the **Not parsed** state. The job pill uses that same status. The workspace shows the bundled Vaswani et al. excerpts and says so. It does not pretend the file was read.
 
 ### Paper workspace (`/papers/[id]`)
 
@@ -31,17 +35,21 @@ Desktop: sticky paper header, left section nav, reading canvas, right Ask drawer
 
 Tablet and phone: section nav becomes a horizontal tab row. Ask becomes a bottom sheet with a dimmed backdrop. Esc closes it. `/` focuses Ask when the user is not already typing.
 
-Header actions: Reprocess (returns the pill to Indexing, then restores the previous terminal status), Export (Markdown of the grounded notes), Share (disabled; “Sharing is not available yet”).
+Header actions: Reprocess (returns the pill to Indexing, then restores the previous terminal status), Export (Markdown of the grounded notes), Copy local link (copies this paper’s URL and toasts success). There is no disabled Share control.
+
+Not parsed workspaces show a sticky, high-contrast banner on Overview, Walkthrough, and Equations: the reading is the bundled sample, Attention Is All You Need (Vaswani et al., 2017), not the uploaded file. Ask stays available so the demo path still works. Every answer in that workspace is prefixed with “Answering from sample paper Attention Is All You Need, not your upload.”
 
 Views:
 
 1. **Overview** — abstract in serif, Problem / Method / Result cards marked “AI-generated explanation”, thumbnail of the main workflow chart, and an Ask paper field.
 2. **Walkthrough** — stepped sections. Order inside a section: plain explanation, then an analogy only if one exists (labeled as not a claim from the paper), then “Why this matters”, then “See in paper”. Simple / Standard / Deep hides the later layers. Math is KaTeX.
-3. **Charts** — skeleton, then cards. Each card has the Ask Chart control at the top right. A note states the diagrams are AI reconstructions, not publisher figures. Regenerate replays the skeleton. Clicking a chart opens a lightbox and the drawer, prefilled with “Explain this chart in the context of the paper.”
-4. **Equations** — sortable, filterable table. Columns: #, equation, name, plain description, location, Ask. Empty state: “No equations detected — run extract again or mark pages manually.”
-5. **Sources** — excerpts collapsed by default. “See in paper” opens the matching excerpt.
+3. **Charts** — skeleton, then cards. Each card has the Ask Chart control at the top right. A note states the diagrams are AI reconstructions, not publisher figures. Regenerate replays the skeleton. Clicking a chart opens a lightbox only. Ask Chart in the lightbox chrome closes the lightbox and opens the drawer, prefilled with “Explain this chart in the context of the paper.” Esc closes the lightbox first, then the drawer.
+4. **Equations** — sortable, filterable table with a sticky header. Columns: #, equation, name, plain description (truncated, with Show more), location, Ask. Ask Chart stays in the row, not in a menu. Opening Equations from a walkthrough section filters to that section’s prefix; opening it from anywhere else starts at All. Empty state: “No equations detected — run extract again or mark pages manually.”
+5. **Sources** — excerpts collapsed by default. “See in paper” and “Show in Sources” on an evidence quote open the matching excerpt. A missing id toasts and does not invent text.
 
-Paywalled and failed papers do not render walkthrough text. The screen repeats the human error and links back to upload.
+Paywalled and failed papers do not render walkthrough text. The screen repeats “Paywalled — upload PDF instead” when that is the error, and includes a PDF dropzone on the paper itself (“Replace this link with a PDF.”). The file is still not parsed.
+
+On the first visit to a full Ready paper, a one-line coach says “Click Ask Chart on any equation.” The first equation’s Ask Chart control pulses. Dismiss writes `paper-lens-ask-coach-dismissed` and the coach does not return. It is not a modal.
 
 ## Ask Chart
 
@@ -51,10 +59,12 @@ The drawer header shows a scope chip: `Equation (3)`, `Chart: Training loop`, or
 
 Suggested prompts: What is this? · Why is it used here? · How does it connect to the method? · Explain like I’m new to this field. Chart scope leads with “Explain this chart in the context of the paper.”
 
-Answers stream from the mock client, can be stopped, and attach an Evidence disclosure. If no excerpt is available, the reply says so and does not invent a passage.
+Answers stream from the mock client, can be stopped, and attach an Evidence disclosure. “Show in Sources” jumps to that excerpt. If no excerpt is available, the reply says so and does not invent a passage.
+
+Settings shows a Mock mode banner and a locked On switch. Model ids, the endpoint, and the API key are disabled. Saving them does not imply a model is connected.
 
 ## What the mock will not do
 
 - It will not answer from outside the stored excerpts. Unrecognized questions fall back to the note already written for that scope, still with the same evidence ids.
 - It will not fill in a paywalled paper.
-- Uploaded PDFs are not parsed. The banner says which public paper the sample reading actually is.
+- Uploaded PDFs are not parsed. Status, library line, sticky banners, and Ask prefixes all use **Not parsed** and name the bundled sample.

@@ -22,7 +22,7 @@ export const bertPaper: PaperRecord = {
     sourceUrl: "https://arxiv.org/abs/1810.04805",
     provider: "arxiv",
     status: "partial",
-    statusDetail: "Text ready · charts failed",
+    statusDetail: "Text ready · equations failed · charts failed",
     updatedAt: "2018-10-11T00:00:00.000Z",
     equationCount: 0,
     chartCount: 0,
@@ -31,6 +31,8 @@ export const bertPaper: PaperRecord = {
       "Couldn't build charts from the method section",
     ],
     badge: "Partial",
+    statusHelp:
+      "Walkthrough is ready. Equations were not parsed. Charts were not built.",
   },
   abstract:
     "We introduce a new language representation model called BERT, which stands for Bidirectional Encoder Representations from Transformers. Unlike recent language representation models, BERT is designed to pre-train deep bidirectional representations from unlabeled text by jointly conditioning on both left and right context in all layers.",
@@ -177,6 +179,8 @@ export function paywalledPaper(): PaperRecord {
       chartCount: 0,
       warnings: ["Paywalled — upload PDF instead"],
       badge: "No full text",
+      statusHelp:
+        "No full text was retrieved. You can drop a PDF on this paper’s page. Nothing here was read from IEEE.",
     },
     abstract: null,
     abstractEvidenceIds: [],

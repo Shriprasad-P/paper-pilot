@@ -235,6 +235,7 @@ function emptyPaper(input: {
       chartCount: 0,
       warnings: [input.statusDetail],
       badge: input.status === "paywalled" ? "No full text" : "Failed",
+      statusHelp: input.statusDetail,
     },
     abstract: null,
     abstractEvidenceIds: [],
@@ -261,20 +262,37 @@ function emptyPaper(input: {
   };
 }
 
+export const SAMPLE_PAPER_NAME = "Attention Is All You Need";
+export const SAMPLE_PAPER_CITATION = "Vaswani et al., 2017";
+export const SAMPLE_ASK_NOTE = `Answering from sample paper ${SAMPLE_PAPER_NAME}, not your upload.`;
+
+export function unparsedDetail(filename: string) {
+  return `Not parsed. Demo sample of ${SAMPLE_PAPER_NAME} (${SAMPLE_PAPER_CITATION}), not ${filename}.`;
+}
+
+export function unparsedBanner(filename: string) {
+  return `Not parsed. This reading is the bundled sample, ${SAMPLE_PAPER_NAME} (${SAMPLE_PAPER_CITATION}), not “${filename}”.`;
+}
+
 function cloneSampleUpload(filename: string): PaperRecord {
   const clone = structuredClone(attentionPaper);
   clone.summary = {
     ...clone.summary,
     id: `upload-${crypto.randomUUID()}`,
+    title: filename,
+    authors: [],
+    year: null,
+    venue: null,
     sourceLabel: filename,
     sourceUrl: null,
     provider: "pdf",
-    status: "ready",
-    statusDetail: "Ready · sample reading, file not parsed",
+    status: "unparsed",
+    statusDetail: unparsedDetail(filename),
+    statusHelp: `This file was not parsed. The reading is the bundled sample, ${SAMPLE_PAPER_NAME} (${SAMPLE_PAPER_CITATION}).`,
     updatedAt: new Date().toISOString(),
-    badge: "Sample",
+    badge: "Not parsed",
   };
-  clone.demoNote = `“${filename}” was not parsed. This build has no model server, so the workspace shows stored excerpts from Vaswani et al., 2017 (arXiv:1706.03762), not the contents of your file.`;
+  clone.demoNote = unparsedBanner(filename);
   return clone;
 }
 
@@ -367,13 +385,9 @@ async function runJob(jobId: string, options?: { reprocessPaperId?: string }) {
     const paper = allRecords().find((item) => item.summary.id === options.reprocessPaperId);
     const status = paper?.summary.status ?? "ready";
     const detail =
-      status === "partial"
-        ? "Text ready · charts failed"
-        : status === "paywalled"
-          ? "Paywalled — upload PDF instead"
-          : status === "failed"
-            ? paper?.summary.statusDetail ?? "Failed"
-            : "Ready";
+      status === "partial" || status === "unparsed" || status === "paywalled" || status === "failed"
+        ? paper?.summary.statusDetail ?? status
+        : "Ready";
     state = {
       ...state,
       overlay: {

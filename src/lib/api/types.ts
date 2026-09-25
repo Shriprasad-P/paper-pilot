@@ -5,7 +5,8 @@ export type PaperStatus =
   | "ready"
   | "partial"
   | "failed"
-  | "paywalled";
+  | "paywalled"
+  | "unparsed";
 
 export type IngestStage =
   | "fetching"
@@ -50,6 +51,8 @@ export interface PaperSummary {
   warnings: string[];
   /** Short library badge such as "Sample". */
   badge: string | null;
+  /** Tooltip for the status pill. Longer than statusDetail. */
+  statusHelp: string | null;
 }
 
 export interface SummaryCard {
@@ -70,6 +73,8 @@ export interface WalkthroughBlock {
   /** Teaching analogy. Never presented as a claim from the paper. */
   analogy: string | null;
   evidenceIds: string[];
+  /** Equation-table filter prefix when this section is open, e.g. "3.2". */
+  equationPrefix?: string | null;
 }
 
 export interface EquationRow {

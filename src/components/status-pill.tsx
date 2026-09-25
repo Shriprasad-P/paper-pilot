@@ -1,4 +1,4 @@
-import { AlertTriangle, Ban, Check, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, Ban, Check, FileWarning, Loader2, Lock } from "lucide-react";
 import type { PaperStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -8,15 +8,18 @@ const COPY: Record<PaperStatus, string> = {
   partial: "Partial",
   failed: "Failed",
   paywalled: "Paywalled",
+  unparsed: "Not parsed",
 };
 
 export function StatusPill({
   status,
   detail,
+  help,
   className,
 }: {
   status: PaperStatus;
   detail?: string;
+  help?: string | null;
   className?: string;
 }) {
   const Icon =
@@ -24,8 +27,10 @@ export function StatusPill({
       ? Loader2
       : status === "ready"
         ? Check
-        : status === "partial"
-          ? AlertTriangle
+        : status === "partial" || status === "unparsed"
+          ? status === "unparsed"
+            ? FileWarning
+            : AlertTriangle
           : status === "paywalled"
             ? Lock
             : Ban;
@@ -37,11 +42,12 @@ export function StatusPill({
         status === "ready" && "border-emerald-700/20 bg-emerald-700/10 text-emerald-900",
         status === "indexing" && "border-primary/20 bg-primary/10 text-primary",
         status === "partial" && "border-amber-700/25 bg-amber-700/10 text-amber-950",
+        status === "unparsed" && "border-amber-950/40 bg-amber-950 text-amber-50",
         status === "failed" && "border-destructive/30 bg-destructive/10 text-destructive",
         status === "paywalled" && "border-stone-400/40 bg-stone-200/70 text-stone-800",
         className,
       )}
-      title={detail || COPY[status]}
+      title={help || detail || COPY[status]}
     >
       <Icon
         className={cn("size-3.5", status === "indexing" && "animate-spin")}

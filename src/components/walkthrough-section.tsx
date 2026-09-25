@@ -9,11 +9,13 @@ export function WalkthroughSection({
   block,
   level,
   onSeeInPaper,
+  onFocusSection,
   defaultOpen = false,
 }: {
   block: WalkthroughBlock;
   level: DetailLevel;
   onSeeInPaper: (chunkId: string) => void;
+  onFocusSection?: (equationPrefix: string | null) => void;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -21,7 +23,11 @@ export function WalkthroughSection({
   return (
     <details
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onToggle={(event) => {
+        const next = event.currentTarget.open;
+        setOpen(next);
+        if (next) onFocusSection?.(block.equationPrefix ?? null);
+      }}
       className="group border-b border-border py-1"
     >
       <summary className="flex cursor-pointer list-none items-baseline justify-between gap-4 rounded-md px-1 py-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">

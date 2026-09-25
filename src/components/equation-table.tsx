@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { EquationRow } from "@/lib/api/types";
 import { AskChartButton } from "@/components/ask-chart-button";
 import { MathBlock, MathText } from "@/components/math-text";
@@ -14,27 +14,43 @@ export function EquationTable({
   onAsk,
   activeEquationId,
   onRetry,
+  initialSection = "all",
+  showCoach = false,
+  onDismissCoach,
 }: {
   equations: EquationRow[];
   warnings: string[];
   onAsk: (equation: EquationRow) => void;
   activeEquationId?: string | null;
   onRetry?: () => void;
+  initialSection?: string;
+  showCoach?: boolean;
+  onDismissCoach?: () => void;
 }) {
-  const [section, setSection] = useState("all");
+  const [section, setSection] = useState(initialSection);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("number");
   const [ascending, setAscending] = useState(true);
 
-  const sections = useMemo(
-    () => Array.from(new Set(equations.map((row) => row.section))),
-    [equations],
-  );
+  useEffect(() => {
+    setSection(initialSection);
+  }, [initialSection]);
+
+  const sections = useMemo(() => {
+    const exact = Array.from(new Set(equations.map((row) => row.section)));
+    if (initialSection !== "all" && !exact.includes(initialSection)) {
+      return [initialSection, ...exact];
+    }
+    return exact;
+  }, [equations, initialSection]);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const filtered = equations.filter((row) => {
-      if (section !== "all" && row.section !== section) return false;
+      if (section !== "all" && row.section !== section && !row.section.startsWith(`${section}.`) && !row.section.startsWith(section)) {
+        return false;
+      }
       if (!needle) return true;
       return (
         row.name.toLowerCase().includes(needle) ||
@@ -125,7 +141,7 @@ export function EquationTable({
 
       <div className="hidden overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 md:block">
         <table className="w-full text-sm">
-          <thead className="bg-muted/60 text-left text-xs tracking-wide text-muted-foreground uppercase">
+          <thead className="sticky top-0 z-10 bg-muted text-left text-xs tracking-wide text-muted-foreground uppercase">
             <tr>
               <SortHeader label="#" active={sortKey === "number"} ascending={ascending} onClick={() => toggleSort("number")} />
               <th className="px-3 py-3 font-medium">Equation</th>
@@ -144,18 +160,31 @@ export function EquationTable({
                 </td>
                 <td className="px-3 py-4 font-medium">{row.name}</td>
                 <td className="max-w-sm px-3 py-4 text-muted-foreground">
-                  <MathText text={row.note.what} className="text-sm leading-6" />
+                  <Description
+                    id={row.id}
+                    text={row.note.what}
+                    expanded={Boolean(expanded[row.id])}
+                    onToggle={() =>
+                      setExpanded((current) => ({ ...current, [row.id]: !current[row.id] }))
+                    }
+                  />
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-muted-foreground">
                   §{row.section}
                   {row.page != null ? ` · p. ${row.page}` : ""}
                 </td>
                 <td className="px-3 py-3">
-                  <AskChartButton
-                    onClick={() => onAsk(row)}
-                    pressed={activeEquationId === row.id}
-                    label={`Ask about equation ${row.number}`}
-                  />
+                  <AskWithCoach
+                    show={showCoach && row.number === 1}
+                    onDismiss={onDismissCoach}
+                  >
+                    <AskChartButton
+                      onClick={() => onAsk(row)}
+                      pressed={activeEquationId === row.id}
+                      label={`Ask about equation ${row.number}`}
+                      className={showCoach && row.number === 1 ? "animate-pulse ring-4 ring-amber-600 ring-offset-2" : undefined}
+                    />
+                  </AskWithCoach>
                 </td>
               </tr>
             ))}
@@ -176,23 +205,82 @@ export function EquationTable({
                 #{row.number} · §{row.section}
                 {row.page != null ? ` · p. ${row.page}` : ""}
               </p>
-              <AskChartButton
-                onClick={() => onAsk(row)}
-                pressed={activeEquationId === row.id}
-                label={`Ask about equation ${row.number}`}
-              />
+              <AskWithCoach show={showCoach && row.number === 1} onDismiss={onDismissCoach}>
+                <AskChartButton
+                  onClick={() => onAsk(row)}
+                  pressed={activeEquationId === row.id}
+                  label={`Ask about equation ${row.number}`}
+                  className={showCoach && row.number === 1 ? "animate-pulse ring-4 ring-amber-600 ring-offset-2" : undefined}
+                />
+              </AskWithCoach>
             </div>
             <h3 className="mt-1 font-medium">{row.name}</h3>
             <div className="mt-2 overflow-x-auto rounded-lg bg-muted/40 px-2 py-1">
               <MathBlock latex={row.latex} />
             </div>
-            <MathText text={row.note.what} className="mt-2 text-sm leading-6 text-muted-foreground" />
+            <Description
+              id={row.id}
+              text={row.note.what}
+              expanded={Boolean(expanded[row.id])}
+              onToggle={() =>
+                setExpanded((current) => ({ ...current, [row.id]: !current[row.id] }))
+              }
+            />
           </article>
         ))}
         {rows.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">No equations match that filter.</p>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function Description({
+  text,
+  expanded,
+  onToggle,
+}: {
+  id: string;
+  text: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const long = text.length > 180;
+  return (
+    <div>
+      <div className={expanded || !long ? undefined : "line-clamp-3"}>
+        <MathText text={text} className="text-sm leading-6" />
+      </div>
+      {long ? (
+        <button type="button" className="mt-1 text-xs text-primary underline-offset-2 hover:underline" onClick={onToggle}>
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function AskWithCoach({
+  show,
+  onDismiss,
+  children,
+}: {
+  show: boolean;
+  onDismiss?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      {children}
+      {show ? (
+        <div className="absolute top-12 right-0 z-20 w-52 rounded-lg bg-foreground px-3 py-2 text-left text-xs leading-5 text-background shadow-lg">
+          <p>Click Ask Chart on any equation.</p>
+          <button type="button" className="mt-1 underline" onClick={onDismiss}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

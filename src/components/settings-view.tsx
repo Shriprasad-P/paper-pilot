@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -44,94 +43,75 @@ export function SettingsView() {
     setReady(true);
   }, []);
 
-  function save() {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ ...settings, apiKey }),
-    );
-    toast.success("Saved in this browser. Nothing was sent to a model.");
-  }
-
-  return (
+    return (
     <div className="mx-auto max-w-2xl px-4 py-10 md:px-6">
       <p className="text-xs font-medium tracking-wide text-primary uppercase">Settings</p>
       <h1 className="mt-1 font-serif text-4xl">Models</h1>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        This build reads a stored demo index. The fields below are the model ids a later worker should call. Keys stay in local storage and are not transmitted.
+      <p className="mt-4 rounded-lg border border-amber-950 bg-amber-950 px-4 py-3 text-sm leading-6 font-medium text-amber-50">
+        Mock mode is on. Models are not called. Answers come from the stored demo index.
+      </p>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        The ids below are what a later worker should call. They are not connected. Endpoint and API key stay off until that wiring exists.
       </p>
 
-      <fieldset className="mt-8 space-y-3" disabled={!ready}>
-        <legend className="text-sm font-medium">Where answers run</legend>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setSettings((current) => ({ ...current, mode: "local" }))}
-            className={`h-10 rounded-full px-4 text-sm ${settings.mode === "local" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-            aria-pressed={settings.mode === "local"}
-          >
-            Local
-          </button>
-          <button
-            type="button"
-            onClick={() => setSettings((current) => ({ ...current, mode: "cloud" }))}
-            className={`h-10 rounded-full px-4 text-sm ${settings.mode === "cloud" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
-            aria-pressed={settings.mode === "cloud"}
-          >
-            Cloud
-          </button>
-        </div>
-        {settings.mode === "cloud" ? (
-          <p className="text-sm text-amber-950">
-            Cloud calls are not connected. Answers still come from the demo index on this machine.
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Local mode expects a Qwen3 server at the endpoint below. Until that process is running, the UI keeps using mock retrieval.
-          </p>
-        )}
-      </fieldset>
+      <div className="mt-6 flex items-center gap-3">
+        <span className="text-sm font-medium">Mock mode</span>
+        <button
+          type="button"
+          disabled
+          aria-pressed="true"
+          className="h-10 cursor-not-allowed rounded-full bg-foreground px-4 text-sm text-background"
+        >
+          On
+        </button>
+      </div>
 
-      <div className="mt-6 space-y-4">
+      <fieldset className="mt-6 space-y-4" disabled={!ready}>
         <Field
           label="Chat model"
-          hint="The brief’s “Qwen3.6b” maps to the published Qwen3-0.6B checkpoint."
+          hint="Planned id only. The brief’s “Qwen3.6b” maps to Qwen3-0.6B. Not called in mock mode."
           value={settings.chatModel}
+          disabled
           onChange={(chatModel) => setSettings((current) => ({ ...current, chatModel }))}
         />
         <Field
           label="Vision model"
-          hint="Used later to read figures and PDF pages."
+          hint="Planned id for figures and PDF pages. Not called."
           value={settings.visionModel}
+          disabled
           onChange={(visionModel) => setSettings((current) => ({ ...current, visionModel }))}
         />
         <Field
           label="Embedding model"
-          hint="Chunk retrieval for the RAG index."
+          hint="Planned id for chunk retrieval. Not called."
           value={settings.embeddingModel}
+          disabled
           onChange={(embeddingModel) => setSettings((current) => ({ ...current, embeddingModel }))}
         />
         <Field
           label="Local endpoint"
+          hint="Disabled until a model server is wired."
           value={settings.endpoint}
+          disabled
           onChange={(endpoint) => setSettings((current) => ({ ...current, endpoint }))}
         />
         <label className="block text-sm">
           <span className="font-medium">API key</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Disabled. Nothing is sent, and saving a key would not connect a model.
+          </span>
           <Input
             type="password"
             autoComplete="off"
             value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="Optional, stored only in this browser"
+            disabled
+            placeholder="Not used in mock mode"
             className="mt-1 h-11"
           />
         </label>
-      </div>
+      </fieldset>
 
-      <div className="mt-8 flex flex-wrap items-center gap-3">
-        <Button className="h-11" onClick={save}>
-          Save settings
-        </Button>
+      <div className="mt-8">
         <Button
           variant="outline"
           className="h-11"
@@ -149,17 +129,24 @@ function Field({
   hint,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   hint?: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="block text-sm">
       <span className="font-medium">{label}</span>
       {hint ? <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span> : null}
-      <Input value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-11 font-mono text-xs" />
+      <Input
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-11 font-mono text-xs"
+      />
     </label>
   );
 }

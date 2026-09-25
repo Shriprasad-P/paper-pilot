@@ -74,11 +74,18 @@ export function LibraryView() {
                     {paper.venue ? ` · ${paper.venue}` : ""}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">{paper.sourceLabel}</p>
+                  {paper.status !== "ready" && paper.status !== "indexing" ? (
+                    <p className="mt-2 text-sm leading-6 text-foreground">{paper.statusDetail}</p>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   <span>{paper.equationCount} equations</span>
                   <span>{paper.chartCount} charts</span>
-                  <StatusPill status={paper.status} detail={paper.statusDetail} />
+                  <StatusPill
+                    status={paper.status}
+                    detail={paper.statusDetail}
+                    help={paper.statusHelp}
+                  />
                 </div>
               </Link>
             </li>

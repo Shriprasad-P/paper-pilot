@@ -6,6 +6,7 @@ import { FileText, RotateCcw } from "lucide-react";
 import type { Provider } from "@/lib/api/types";
 import {
   detectProvider,
+  getPaper,
   ingest,
   retryJob,
   stageLabel,
@@ -226,7 +227,17 @@ export function IngestDropzone() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="truncate text-sm font-medium">{job.input.name}</p>
                   {job.done && job.paperId && !job.error ? (
-                    <StatusPill status={job.warnings.length > 0 ? "partial" : "ready"} />
+                    <StatusPill
+                      status={
+                        getPaper(job.paperId)?.summary.status === "unparsed"
+                          ? "unparsed"
+                          : job.warnings.length > 0
+                            ? "partial"
+                            : "ready"
+                      }
+                      detail={getPaper(job.paperId)?.summary.statusDetail}
+                      help={getPaper(job.paperId)?.summary.statusHelp}
+                    />
                   ) : null}
                   {job.error ? (
                     <StatusPill status={job.error.includes("Paywalled") ? "paywalled" : "failed"} detail={job.error} />
@@ -278,6 +289,66 @@ export function IngestDropzone() {
           </ul>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+export function CompactPdfDrop({
+  onFile,
+  busy = false,
+}: {
+  onFile: (file: File) => void;
+  busy?: boolean;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  function take(file: File | undefined) {
+    if (!file) return;
+    const pdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!pdf) {
+      setError("That file isn’t a PDF.");
+      return;
+    }
+    setError(null);
+    onFile(file);
+  }
+
+  return (
+    <div
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragOver(false);
+        take(event.dataTransfer.files[0]);
+      }}
+      className={cn(
+        "rounded-xl border border-dashed bg-card px-4 py-6 text-center",
+        dragOver ? "border-primary bg-primary/5" : "border-border",
+      )}
+    >
+      <p className="font-medium">Replace this link with a PDF.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        The file is not parsed. Opening it shows the bundled sample reading.
+      </p>
+      <label className="mt-4 inline-flex h-11 cursor-pointer items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground">
+        {busy ? "Reading file…" : "Browse PDF"}
+        <input
+          type="file"
+          accept="application/pdf,.pdf"
+          className="sr-only"
+          disabled={busy}
+          onChange={(event) => {
+            take(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+      </label>
+      {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Square, X } from "lucide-react";
 import type { AskScope, PaperRecord } from "@/lib/api/types";
 import { scopeLabel, suggestedPrompts } from "@/lib/api/ask";
+import { SAMPLE_ASK_NOTE } from "@/lib/paper-store";
 import { paperLensClient } from "@/lib/api/client";
 import { getThread, setThread, usePaperStore } from "@/lib/paper-store";
 import { AskChartMark } from "@/components/ask-chart-button";
@@ -31,6 +32,7 @@ export function AskDrawer({
   onClose,
   inputRef,
   autoSendKey = 0,
+  onShowInSources,
 }: {
   paper: PaperRecord;
   scope: AskScope;
@@ -40,6 +42,7 @@ export function AskDrawer({
   onClose: () => void;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   autoSendKey?: number;
+  onShowInSources?: (chunkId: string) => void;
 }) {
   usePaperStore();
   const messages = getThread(paper.summary.id, scope);
@@ -166,6 +169,9 @@ export function AskDrawer({
           <p className="mt-2 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
             {scopeLabel(paper, scope)}
           </p>
+          {paper.summary.status === "unparsed" ? (
+            <p className="mt-2 text-xs leading-5 font-medium text-amber-950">{SAMPLE_ASK_NOTE}</p>
+          ) : null}
         </div>
         <Button variant="ghost" size="icon" className="size-11" onClick={onClose} aria-label="Close ask panel">
           <X />
@@ -186,6 +192,9 @@ export function AskDrawer({
               </p>
             ) : (
               <div className="space-y-2">
+                {paper.summary.status === "unparsed" ? (
+                  <p className="text-xs leading-5 font-medium text-amber-950">{SAMPLE_ASK_NOTE}</p>
+                ) : null}
                 <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   AI-generated explanation
                   {message.stopped ? " · stopped" : ""}
@@ -207,7 +216,16 @@ export function AskDrawer({
                       {message.evidenceIds.map((id) => {
                         const chunk = chunks.get(id);
                         return chunk ? (
-                          <EvidenceQuote key={id} chunk={chunk} />
+                          <div key={id}>
+                            <EvidenceQuote chunk={chunk} />
+                            <button
+                              type="button"
+                              className="mt-1 text-xs text-primary underline-offset-2 hover:underline"
+                              onClick={() => onShowInSources?.(id)}
+                            >
+                              Show in Sources
+                            </button>
+                          </div>
                         ) : (
                           <p key={id} className="text-xs text-destructive">
                             Missing excerpt {id}
