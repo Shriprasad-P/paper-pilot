@@ -268,7 +268,7 @@ export function IngestDropzone() {
                     </Button>
                   ) : null}
                   {job.done && job.paperId ? (
-                    <Button className="h-10" render={<Link href={`/papers/${job.paperId}`} />}>
+                    <Button className="h-10" nativeButton={false} render={<Link href={`/papers/${job.paperId}`} />}>
                       Open paper
                     </Button>
                   ) : null}

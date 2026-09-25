@@ -93,7 +93,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
         <p className="mt-2 text-sm text-muted-foreground">
           It may have been from another session. Add it again from the ingest screen.
         </p>
-        <Button className="mt-6 h-11" render={<Link href="/ingest" />}>
+        <Button className="mt-6 h-11" nativeButton={false} render={<Link href="/ingest" />}>
           Add a paper
         </Button>
       </div>
@@ -519,7 +519,7 @@ function BlockedState({
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
         No walkthrough, equations, or charts are shown, because no text was retrieved.
       </p>
-      <Button className="mt-6 h-11" render={<Link href="/ingest" />}>
+      <Button className="mt-6 h-11" nativeButton={false} render={<Link href="/ingest" />}>
         <Upload className="size-4" />
         Upload PDF instead
       </Button>

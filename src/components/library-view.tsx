@@ -32,7 +32,7 @@ export function LibraryView() {
             Drop a PDF or paste a link. Paper Lens walks the argument in plain language and keeps each explanation next to the passage it came from.
           </p>
         </div>
-        <Button className="h-11" render={<Link href="/ingest" />}>
+        <Button className="h-11" nativeButton={false} render={<Link href="/ingest" />}>
           Add a paper
         </Button>
       </div>
