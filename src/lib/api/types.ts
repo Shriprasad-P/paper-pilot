@@ -90,10 +90,27 @@ export interface EquationRow {
 }
 
 export type ChartKind =
-  | "workflow"
-  | "architecture"
-  | "training"
-  | "evaluation";
+  | "methodology_workflow"
+  | "model_architecture"
+  | "training_or_inference_loop"
+  | "data_pipeline";
+
+export type DiagramNodeRole = "input" | "process" | "model" | "output" | "loss" | "other";
+
+export type ChartBackend = "bundled" | "mlx" | "ollama";
+
+export interface DiagramNode {
+  id: string;
+  label: string;
+  role: DiagramNodeRole;
+  evidence_ids: string[];
+}
+
+export interface DiagramEdge {
+  from: string;
+  to: string;
+  label: string | null;
+}
 
 export interface ChartSpec {
   id: string;
@@ -101,6 +118,14 @@ export interface ChartSpec {
   caption: string;
   kind: ChartKind;
   mermaid: string;
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+  evidence_ids: string[];
+  warnings: string[];
+  /** Null on the bundled sample reconstruction, before a local model runs. */
+  modelId: string | null;
+  backend: ChartBackend | null;
+  elapsedMs: number | null;
   note: GroundedNote;
 }
 

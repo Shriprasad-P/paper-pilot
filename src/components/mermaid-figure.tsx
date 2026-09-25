@@ -26,6 +26,15 @@ export function MermaidFigure({
           securityLevel: "strict",
           theme: "base",
           fontFamily: "Inter, ui-sans-serif, sans-serif",
+          flowchart: {
+            htmlLabels: true,
+            curve: "basis",
+            padding: 16,
+            nodeSpacing: 28,
+            rankSpacing: 40,
+            wrappingWidth: 280,
+            useMaxWidth: true,
+          },
           themeVariables: {
             background: "transparent",
             primaryColor: "#e6f1f3",
@@ -34,7 +43,7 @@ export function MermaidFigure({
             lineColor: "#1b4f5c",
             secondaryColor: "#f4f0e6",
             tertiaryColor: "#f7f4ee",
-            fontSize: "14px",
+            fontSize: "16px",
           },
         });
         const { svg: markup } = await mermaid.render(`pl-${reactId}`, source);

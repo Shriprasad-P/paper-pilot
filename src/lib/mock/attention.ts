@@ -1,4 +1,5 @@
 import type { PaperRecord } from "@/lib/api/types";
+import { bundledChart } from "@/lib/charts/spec";
 
 /**
  * Demo index for Vaswani et al., 2017, arXiv:1706.03762.
@@ -315,75 +316,99 @@ export const attentionPaper: PaperRecord = {
   ],
   equationWarnings: [],
   charts: [
-    {
+    bundledChart({
       id: "chart-workflow",
-      title: "Translation workflow",
+      title: "Transformer method",
       caption:
-        "Source tokens enter the encoder stack. Target tokens, shifted right, enter the decoder. The decoder also reads the encoder output, then a linear layer and softmax produce the next-token distribution.",
-      kind: "workflow",
-      mermaid: `flowchart LR
-  src[Source tokens] --> emb[Embedding plus position]
-  emb --> enc[Encoder stack N equals 6]
-  enc --> mem[Encoder output]
-  tgt[Target tokens shifted right] --> demb[Embedding plus position]
-  demb --> dec[Decoder stack N equals 6]
-  mem --> dec
-  dec --> lin[Linear and softmax]
-  lin --> nxt[Next-token probabilities]`,
+        "The Transformer uses an encoder stack and a decoder stack of self-attention and position-wise feed-forward layers. Positional encodings are added to the input embeddings.",
+      kind: "methodology_workflow",
+      nodes: [
+        { id: "emb", label: "Input embeddings", role: "input", evidence_ids: ["c-pos"] },
+        { id: "pos", label: "Positional encodings", role: "process", evidence_ids: ["c-pos"] },
+        { id: "enc", label: "Encoder stack N=6", role: "model", evidence_ids: ["c-enc-stack"] },
+        { id: "attn", label: "Multi-head self-attention", role: "process", evidence_ids: ["c-enc-stack"] },
+        { id: "ffn", label: "Position-wise feed-forward", role: "process", evidence_ids: ["c-ffn"] },
+        { id: "dec", label: "Decoder stack", role: "model", evidence_ids: ["c-arch"] },
+      ],
+      edges: [
+        { from: "emb", to: "pos", label: "added" },
+        { from: "pos", to: "enc", label: null },
+        { from: "enc", to: "attn", label: null },
+        { from: "attn", to: "ffn", label: null },
+        { from: "ffn", to: "dec", label: null },
+        { from: "pos", to: "dec", label: null },
+      ],
+      evidence_ids: ["c-pos", "c-enc-stack", "c-ffn", "c-arch"],
       note: {
-        what: "This is the encoder–decoder layout in Section 3. The left stack reads the source. The right stack generates the target one token at a time, attending to the encoder output.",
-        why: "The paper keeps the encoder–decoder frame and replaces the recurrent layers inside it. The chart is that replacement, not a copy of a publisher figure.",
+        what: "Section 3 builds the Transformer from stacked self-attention and point-wise fully connected layers for both the encoder and the decoder. The encoder is N = 6 identical layers. Positional encodings are added to the input embeddings at the bottoms of the encoder and decoder stacks.",
+        why: "The abstract drops recurrence and convolutions. The position signal is added because the model otherwise has no recurrence and no convolution to carry token order.",
         connect:
-          "Multi-head attention and the position-wise feed-forward network are the contents of each layer in those stacks. Positional encodings are added with the embeddings at the bottom.",
+          "Each encoder layer is multi-head self-attention, then a position-wise feed-forward network. A residual and layer norm wrap each sub-layer. That inner layout is the architecture chart.",
         newcomer:
-          "English goes in the left tower. The right tower writes the translation, looking back at the left tower so it does not forget the source sentence.",
-        evidenceIds: ["c-arch", "c-enc-stack", "c-pos"],
+          "One stack reads the sequence. The other stack is the decoder. Both use attention and a small feed-forward network, and a position signal is added to the embeddings.",
+        evidenceIds: ["c-arch", "c-enc-stack", "c-pos", "c-ffn"],
       },
-    },
-    {
+    }),
+    bundledChart({
       id: "chart-encoder",
       title: "One encoder layer",
       caption:
-        "A layer is multi-head self-attention, then a residual and layer norm, then the position-wise feed-forward network, then another residual and layer norm.",
-      kind: "architecture",
-      mermaid: `flowchart TB
-  x[Layer input] --> mha[Multi-head self-attention]
-  mha --> add1[Add and layer norm]
-  add1 --> ffn[Position-wise feed-forward]
-  ffn --> add2[Add and layer norm]
-  add2 --> y[Layer output]`,
+        "Each encoder layer is multi-head self-attention, a residual and layer norm, then a position-wise feed-forward network and another residual and layer norm.",
+      kind: "model_architecture",
+      nodes: [
+        { id: "mha", label: "Multi-head self-attention", role: "process", evidence_ids: ["c-enc-stack"] },
+        { id: "res1", label: "Residual connection", role: "process", evidence_ids: ["c-residual"] },
+        { id: "norm1", label: "Layer normalization", role: "process", evidence_ids: ["c-residual"] },
+        { id: "ffn", label: "Position-wise feed-forward", role: "process", evidence_ids: ["c-ffn"] },
+        { id: "res2", label: "Residual connection", role: "process", evidence_ids: ["c-residual"] },
+        { id: "norm2", label: "Layer normalization", role: "output", evidence_ids: ["c-residual"] },
+      ],
+      edges: [
+        { from: "mha", to: "res1", label: null },
+        { from: "res1", to: "norm1", label: null },
+        { from: "norm1", to: "ffn", label: null },
+        { from: "ffn", to: "res2", label: null },
+        { from: "res2", to: "norm2", label: null },
+      ],
+      evidence_ids: ["c-enc-stack", "c-residual", "c-ffn"],
       note: {
-        what: "Each of the $N = 6$ encoder layers has two sub-layers. The residual around a sub-layer is $\\mathrm{LayerNorm}(x + \\mathrm{Sublayer}(x))$.",
-        why: "The paper uses the residual plus layer norm so the stack can be trained. The feed-forward sub-layer is applied per position after attention has mixed the sequence.",
+        what: "Each of the N = 6 encoder layers has two sub-layers: multi-head self-attention, then a position-wise feed-forward network. The output of each sub-layer is LayerNorm(x + Sublayer(x)).",
+        why: "The residual and layer norm sit on both sub-layers. The feed-forward network is applied to each position separately and identically.",
         connect:
-          "Equation (2) is the attention sub-layer. Equation (4) is the feed-forward sub-layer. The decoder adds one more attention sub-layer over the encoder output, which this encoder-only chart leaves out.",
+          "The attention sub-layer is scaled dot-product attention, run as h = 8 heads. The feed-forward sub-layer is two linear transformations with a ReLU between them.",
         newcomer:
-          "Information enters, tokens look at each other, the layer adds that back onto the input and normalizes, then each token passes through a small network and the same add-and-norm happens again.",
+          "Tokens look at each other, the layer adds that result back and normalizes, then each position goes through the same small network and the add-and-norm happens again.",
         evidenceIds: ["c-enc-stack", "c-residual", "c-ffn", "c-mha"],
       },
-    },
-    {
+    }),
+    bundledChart({
       id: "chart-train",
-      title: "Training loop",
+      title: "Training and reported score",
       caption:
-        "WMT 2014 pairs are scored with label-smoothed cross-entropy. Adam steps use the warmup schedule. The paper reports BLEU on the translation test sets.",
-      kind: "training",
-      mermaid: `flowchart LR
-  data[WMT 2014 sentence pairs] --> model[Transformer]
-  model --> loss[Label-smoothed cross-entropy]
-  loss --> adam[Adam with warmup schedule]
-  adam --> model
-  model --> bleu[BLEU on WMT 2014]`,
+        "Training uses Adam, a warmup learning rate, and label smoothing. The stored results are BLEU on WMT 2014.",
+      kind: "training_or_inference_loop",
+      nodes: [
+        { id: "adam", label: "Adam optimizer", role: "process", evidence_ids: ["c-train-opt"] },
+        { id: "lr", label: "Warmup learning rate", role: "process", evidence_ids: ["c-train-lr"] },
+        { id: "smooth", label: "Label smoothing", role: "loss", evidence_ids: ["c-label"] },
+        { id: "bleu", label: "WMT 2014 BLEU", role: "output", evidence_ids: ["c-results-de"] },
+      ],
+      edges: [
+        { from: "lr", to: "adam", label: null },
+        { from: "adam", to: "smooth", label: null },
+        { from: "smooth", to: "bleu", label: null },
+      ],
+      evidence_ids: ["c-train-opt", "c-train-lr", "c-label", "c-results-de"],
       note: {
-        what: "Training uses Adam and the learning-rate formula in equation (7), with label smoothing $\\epsilon_{ls} = 0.1$. Evaluation in the stored results is BLEU on WMT 2014 English–German and English–French.",
-        why: "The schedule and the smoothing are easy to skip when reading only the architecture. They are part of how the reported BLEU scores were obtained.",
+        what: "Training uses Adam (beta_1 = 0.9, beta_2 = 0.98, epsilon = 10^-9) and a learning rate that increases linearly for warmup_steps, then decreases. Label smoothing is epsilon_ls = 0.1. The big model’s stored scores are 28.4 BLEU on WMT 2014 English-to-German and 41.8 on English-to-French.",
+        why: "The schedule and the smoothing are part of how those BLEU scores were obtained. They are not inside the encoder-layer diagram.",
         connect:
-          "The 28.4 and 41.8 BLEU figures belong to the big model. This chart does not add hardware or step counts that are not in the stored excerpts.",
+          "The learning-rate formula scales with d_model and the step number. The 28.4 and 41.8 figures are the big model’s reported BLEU, not a hardware log.",
         newcomer:
-          "The model guesses the translation, a loss measures the miss, and Adam updates the weights with a step size that rises and then shrinks. BLEU is the score on held-out translations.",
+          "Adam updates the model. The step size rises during warmup and then shrinks. Label smoothing softens the training targets. BLEU is the score the paper reports on WMT 2014.",
         evidenceIds: ["c-train-opt", "c-train-lr", "c-label", "c-results-de", "c-results-fr"],
       },
-    },
+    }),
   ],
   chartError: null,
   chunks: [

@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import type {
   AskMessage,
   AskScope,
+  ChartSpec,
   IngestItemInput,
   IngestJob,
   IngestStage,
@@ -41,6 +42,7 @@ type State = {
   jobs: IngestJob[];
   overlay: Record<string, Partial<PaperSummary>>;
   threads: Record<string, AskMessage[]>;
+  chartOverrides: Record<string, { charts: ChartSpec[]; chartError: string | null }>;
 };
 
 let state: State = {
@@ -48,6 +50,7 @@ let state: State = {
   jobs: [],
   overlay: {},
   threads: {},
+  chartOverrides: {},
 };
 
 const listeners = new Set<() => void>();
@@ -73,8 +76,34 @@ function allRecords(): PaperRecord[] {
 
 function present(record: PaperRecord): PaperRecord {
   const overlay = state.overlay[record.summary.id];
-  if (!overlay) return record;
-  return { ...record, summary: { ...record.summary, ...overlay } };
+  const charts = state.chartOverrides[record.summary.id];
+  let next = record;
+  if (overlay) next = { ...next, summary: { ...next.summary, ...overlay } };
+  if (charts) {
+    next = {
+      ...next,
+      charts: charts.charts,
+      chartError: charts.chartError,
+      mainChartId: charts.charts[0]?.id ?? null,
+      summary: { ...next.summary, chartCount: charts.charts.length },
+    };
+  }
+  return next;
+}
+
+export function setPaperCharts(
+  paperId: string,
+  charts: ChartSpec[],
+  chartError: string | null,
+) {
+  state = {
+    ...state,
+    chartOverrides: {
+      ...state.chartOverrides,
+      [paperId]: { charts, chartError },
+    },
+  };
+  emit();
 }
 
 export function listPapers(): PaperSummary[] {

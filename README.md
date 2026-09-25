@@ -2,7 +2,7 @@
 
 A reading desk for research papers. Upload a PDF or paste an arXiv, IEEE, or Springer link, then read a plain-language walkthrough, reconstructed charts, and an equation table. Ask Chart answers from retrieved excerpts of that paper only.
 
-This repository is the interface and a mock retrieval index. It does not download or run model weights.
+This repository is the reading desk plus a local chart compiler. Ask, walkthroughs, and the sample library still use the stored excerpts. Methodology charts can be rebuilt on a Mac with MLX. Nothing here downloads weights for you, and chat embeddings are not called.
 
 ## Run locally
 
@@ -38,19 +38,41 @@ On **Add paper**, try:
 
 `/` focuses Ask. Esc closes the drawer.
 
-## Models to wire later
+## Methodology charts (local MLX)
 
-The settings screen records these ids. Nothing in the UI calls them yet.
+Ready papers show Mermaid reconstructions. The Transformer sample ships with a bundled spec grounded in its stored excerpts, labeled as a bundled reconstruction, not a live model call. **Regenerate** on a Ready paper calls `scripts/chart_spec.py` when mock mode is off. The script asks the model for JSON (nodes, edges, evidence ids), drops any label that is not in the cited excerpt, and the page draws Mermaid. It does not display a model-painted raster.
 
-| Role | Model id |
-| --- | --- |
-| Chat | `Qwen/Qwen3-0.6B` |
-| Vision (figures and PDF pages) | `Qwen/Qwen3-VL-8B-Instruct` |
-| Embeddings | `Qwen/Qwen3-Embedding-0.6B` |
+Partial, paywalled, failed, and Not parsed papers do not gain charts from this path.
 
-The product note “Qwen3.6b” is mapped to the published **Qwen3-0.6B** chat checkpoint (0.6 billion parameters). There is no separate `Qwen3.6b` id in the public Qwen3 lineup. Figure reading should use **Qwen3-VL-8B-Instruct** when that path is connected.
+### Pick 4B or 27B
 
-Keys typed in Settings stay in `localStorage` under `paper-lens-settings`. They are not sent anywhere.
+Settings → Chart model, after turning **Mock mode** off:
+
+| Choice | Id | Memory |
+| --- | --- | --- |
+| Default | `lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit` | About 3 GB. Use this on a 24 GB M4 Pro. |
+| Larger | `mlx-community/Qwen3.5-27B-4bit` | About 15 GB. Quit other large models first. A “Qwen 3.6” recollection maps to this Qwen3.5 family. |
+
+Environment overrides, if you launch the dev server yourself:
+
+```bash
+PAPER_LENS_VLM_MODEL=lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit
+PAPER_LENS_VLM_MODEL_LARGE=mlx-community/Qwen3.5-27B-4bit
+```
+
+The picker is the id that Regenerate sends. The env vars document the same defaults; the route allow-lists only those two MLX ids.
+
+On Apple Silicon, with the weights already in the Hugging Face cache:
+
+```bash
+pip install mlx-vlm
+```
+
+The sidecar loads one model per run and exits, and it asks Ollama to unload resident models first. If MLX fails (wrong OS, missing `mlx-vlm`, or the weights will not load), it tries Ollama `qwen2.5vl:7b`. If that also fails, the Charts tab keeps the last good diagram and toasts “Couldn't build charts…”. Do not point this at the incomplete `mlx-community/Qwen3-4B-4bit` snapshot or a tokenizer-only folder.
+
+Chat (`Qwen/Qwen3-0.6B`), embeddings, the local endpoint, and the API key stay disabled in Settings. Ask still answers from the stored index.
+
+Keys already in `localStorage` under `paper-lens-settings` are not sent.
 
 ## API surface
 
@@ -61,6 +83,7 @@ UI code talks to `PaperLensClient` in `src/lib/api/client.ts`:
 - `ingest`
 - `reprocess`
 - `ask` (scoped to the whole paper, one equation, or one chart; streams tokens)
+- `POST /api/charts` — Ready papers only; runs the chart sidecar
 
 The mock lives in `src/lib/paper-store.ts` and `src/lib/mock/`. Explanations are written against excerpt ids. If an answer has no excerpt, the client refuses instead of filling the gap.
 

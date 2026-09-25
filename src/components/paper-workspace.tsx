@@ -7,11 +7,13 @@ import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { AskScope, DetailLevel } from "@/lib/api/types";
 import { paperLensClient } from "@/lib/api/client";
-import { getJob, getPaper, ingest, reprocess, stageLabel, usePaperStore } from "@/lib/paper-store";
+import { getJob, getPaper, ingest, reprocess, setPaperCharts, stageLabel, usePaperStore } from "@/lib/paper-store";
+import { readChartSettings } from "@/lib/charts/models";
+import { methodExcerpts } from "@/lib/charts/spec";
 import { CompactPdfDrop } from "@/components/ingest-dropzone";
 import { AskChartButton } from "@/components/ask-chart-button";
 import { AskDrawer } from "@/components/ask-drawer";
-import { ChartCard } from "@/components/chart-card";
+import { ChartCard, ChartFooter } from "@/components/chart-card";
 import { EquationTable } from "@/components/equation-table";
 import { EvidenceQuote } from "@/components/evidence-quote";
 import { MermaidFigure } from "@/components/mermaid-figure";
@@ -57,6 +59,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
   const [equationSection, setEquationSection] = useState("all");
   const [showCoach, setShowCoach] = useState(false);
   const [chartsReady, setChartsReady] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -288,9 +291,53 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                 error={paper.chartError}
                 charts={paper.charts}
                 activeChartId={askOpen ? activeChartId : null}
+                rebuilding={rebuilding}
                 onRegenerate={() => {
+                  if (!paper) return;
+                  if (paper.summary.status !== "ready") {
+                    toast(
+                      paper.summary.status === "unparsed"
+                        ? "This file was not parsed. Charts stay the bundled sample."
+                        : "Couldn't build charts from the method section. The text walkthrough is still available.",
+                    );
+                    return;
+                  }
+                  const settings = readChartSettings();
+                  if (settings.mockMode) {
+                    toast("Mock mode is on. Models are not called, so these stay the bundled reconstruction.");
+                    return;
+                  }
+                  setRebuilding(true);
                   setChartsReady(false);
-                  window.setTimeout(() => setChartsReady(true), 900);
+                  void (async () => {
+                    try {
+                      const response = await fetch("/api/charts", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          status: paper.summary.status,
+                          model: settings.chartModel,
+                          excerpts: methodExcerpts(paper.chunks),
+                        }),
+                      });
+                      const data = (await response.json()) as {
+                        charts?: typeof paper.charts;
+                        error?: string;
+                        model?: string;
+                      };
+                      if (!response.ok || !data.charts) {
+                        toast(data.error ?? "Couldn't build charts from the method section.");
+                        return;
+                      }
+                      setPaperCharts(paper.summary.id, data.charts, null);
+                      toast(data.model ? `Charts rebuilt with ${data.model}.` : "Charts rebuilt.");
+                    } catch {
+                      toast("Couldn't build charts from the method section.");
+                    } finally {
+                      setChartsReady(true);
+                      setRebuilding(false);
+                    }
+                  })();
                 }}
                 onAsk={(chartId) => openAsk({ kind: "chart", chartId }, CHART_PREFILL)}
                 onOpen={(chartId) => {
@@ -389,10 +436,11 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                 <DialogTitle className="font-serif text-xl">{lightbox.title}</DialogTitle>
                 <DialogDescription>{lightbox.caption}</DialogDescription>
               </DialogHeader>
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                AI-reconstructed diagram
+              <p className="text-xs font-medium text-foreground">
+                AI reconstruction from the paper — not a publisher figure.
               </p>
-              <MermaidFigure source={lightbox.mermaid} className="overflow-x-auto" />
+              <MermaidFigure source={lightbox.mermaid} className="overflow-x-auto [&_svg]:h-auto [&_svg]:w-full" />
+              <ChartFooter chart={lightbox} />
               <div className="flex items-center gap-3">
                 <AskChartButton
                   label={`Ask about ${lightbox.title}`}
@@ -482,9 +530,14 @@ function Overview({
             onClick={onOpenChart}
             className="w-full rounded-xl bg-card p-4 text-left ring-1 ring-foreground/10"
           >
-            <MermaidFigure source={mainChart.mermaid} className="overflow-x-auto" />
+            <MermaidFigure source={mainChart.mermaid} className="overflow-x-auto [&_svg]:h-auto [&_svg]:w-full" />
             <p className="mt-2 text-sm text-muted-foreground">{mainChart.caption}</p>
-            <p className="mt-1 text-xs text-muted-foreground">AI-reconstructed diagram</p>
+            <p className="mt-2 text-xs font-medium text-foreground">
+              AI reconstruction from the paper — not a publisher figure.
+            </p>
+            <div className="mt-1">
+              <ChartFooter chart={mainChart} />
+            </div>
           </button>
         ) : (
           <div className="rounded-xl border border-dashed px-4 py-8 text-sm text-muted-foreground">
@@ -501,6 +554,7 @@ function ChartsView({
   error,
   charts,
   activeChartId,
+  rebuilding,
   onRegenerate,
   onAsk,
   onOpen,
@@ -509,6 +563,7 @@ function ChartsView({
   error: string | null;
   charts: NonNullable<ReturnType<typeof getPaper>>["charts"];
   activeChartId: string | null;
+  rebuilding: boolean;
   onRegenerate: () => void;
   onAsk: (id: string) => void;
   onOpen: (id: string) => void;
@@ -519,12 +574,12 @@ function ChartsView({
         <div>
           <h2 className="font-serif text-2xl">Charts and figures</h2>
           <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
-            These are AI reconstructions from the method section, not the publisher’s figures.
+            Compiled from retrieved method text. Regenerate runs local MLX when mock mode is off.
           </p>
         </div>
-        <Button variant="outline" className="h-10" onClick={onRegenerate}>
+        <Button variant="outline" className="h-10" onClick={onRegenerate} disabled={rebuilding}>
           <RefreshCw className="size-4" />
-          Regenerate
+          {rebuilding ? "Building…" : "Regenerate"}
         </Button>
       </div>
       {!ready ? (
@@ -540,7 +595,7 @@ function ChartsView({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4">
           {charts.map((chart) => (
             <ChartCard
               key={chart.id}
