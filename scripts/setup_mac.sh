@@ -1,33 +1,38 @@
 #!/bin/bash
 # Run this on the Apple Silicon Mac, from the repo root.
-# It does not load the vision model and FLUX at the same time.
+# One heavy model at a time. Peak target is under 18 GB on a 24 GB M4 Pro.
+# Charts do not load a vision-language model. Ask loads only after FLUX has exited.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 python3 -m venv .venv
-.venv/bin/pip install -U pip mlx mlx-vlm huggingface_hub pillow
-.venv/bin/python -c "import mlx, mlx_vlm; print('mlx-vlm OK')"
+.venv/bin/pip install -U pip huggingface_hub pillow
 
 if [[ ! -x "$HOME/.local/bin/mflux-generate" ]] && ! command -v mflux-generate >/dev/null; then
   echo "mflux-generate is missing. Install with: uv tool install mflux"
   exit 1
 fi
 
-echo "Downloading Qwen3-VL-8B 4-bit (skipped automatically if the cache is complete)..."
-.venv/bin/huggingface-cli download mlx-community/Qwen3-VL-8B-Instruct-4bit
+echo "Checking the Hugging Face cache for FLUX.1 schnell (this script does not download weights)..."
+if find "$HOME/.cache/huggingface/hub" -maxdepth 2 -type d \( -iname '*FLUX.1-schnell*' -o -iname '*flux.1-schnell*' -o -iname '*flux*schnell*' \) 2>/dev/null | grep -q .; then
+  echo "FLUX.1 schnell is already in ~/.cache/huggingface/hub. Skipping any download."
+else
+  echo "FLUX.1 schnell was not found under ~/.cache/huggingface/hub."
+  echo "Weights are expected to be cached already. This script will not download them."
+  exit 1
+fi
 
-echo "Downloading FLUX.1 schnell with one small mflux run, then deleting the probe image..."
-PROBE="$(mktemp -d)/paper-lens-flux-probe.png"
-mflux-generate --model schnell --prompt "A single labeled box" --steps 2 --width 256 --height 256 --low-ram --output "$PROBE" \
-  || mflux-generate --model schnell --prompt "A single labeled box" --steps 2 --width 256 --height 256 --output "$PROBE"
-rm -f "$PROBE"
-echo "FLUX probe finished. Weights should now be under ~/.cache/huggingface/hub/"
+if ! command -v ollama >/dev/null; then
+  echo "Ollama is missing. Install it, then rerun so nomic-embed-text and llama3.2:3b can be pulled."
+  exit 1
+fi
 
 ollama pull nomic-embed-text
-ollama pull qwen3:4b
+ollama pull llama3.2:3b
 
 if [[ ! -f .env.local ]]; then
   cp .env.example .env.local
 fi
 
-echo "Setup done. Start the desk with: npm install && npx next dev --turbopack -H 0.0.0.0 -p 43123"
+echo "Setup done. Live stack: Apple OCR + nomic-embed-text + llama3.2:3b + mflux FLUX, one heavy model at a time."
+echo "Start the desk with: npm install && npx next dev --turbopack -H 0.0.0.0 -p 43123"

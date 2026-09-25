@@ -66,7 +66,7 @@ export function ChartVisual({ chart }: { chart: ChartSpec }) {
   return (
     <div>
       {chart.render === "mermaid" ? (
-        <p className="mb-2 text-xs text-muted-foreground">Mermaid fallback. FLUX did not render this diagram.</p>
+        <p className="mb-2 text-xs text-muted-foreground">FLUX unavailable. Fell back to Mermaid.</p>
       ) : null}
       <MermaidFigure source={chart.mermaid} className="overflow-x-auto [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:w-full" />
     </div>
@@ -76,11 +76,11 @@ export function ChartVisual({ chart }: { chart: ChartSpec }) {
 export function ChartFooter({ chart }: { chart: ChartSpec }) {
   const elapsed = chart.elapsedMs != null ? ` · ${(chart.elapsedMs / 1000).toFixed(1)}s` : "";
   const source =
-    chart.render === "bundled" || !chart.vlModelId
+    chart.render === "bundled"
       ? "Bundled sample reconstruction · not a live model call"
       : chart.fluxModelId
-        ? `${chart.vlModelId} · ${chart.fluxModelId}${elapsed}`
-        : `${chart.vlModelId} · Mermaid fallback${elapsed}`;
+        ? `${chart.fluxModelId}${elapsed}`
+        : `Mermaid fallback. FLUX did not render.${elapsed}`;
   return (
     <div className="space-y-1">
       <p className="font-mono text-[11px] leading-5 text-muted-foreground">{source}</p>

@@ -18,7 +18,7 @@ function sleep(ms: number) {
 
 /**
  * Mock Paper Lens client. Swap this module for a network client when
- * embeddings, Qwen3, and chart generation are wired. The UI should keep
+ * embeddings, the local Ask model, and chart generation are wired. The UI should keep
  * calling PaperLensClient only.
  */
 export function createPaperLensClient(): PaperLensClient {

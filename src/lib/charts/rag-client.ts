@@ -1,4 +1,5 @@
 import type { AskResult, AskScope, PaperRecord } from "@/lib/api/types";
+import { readChartSettings } from "@/lib/charts/models";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -64,6 +65,7 @@ export async function askWithLocalRag(args: {
     body: JSON.stringify({
       paperId: args.paper.summary.id,
       question: args.question,
+      askModel: readChartSettings().askModel,
       chart: scoped
         ? {
             title: scoped.title,

@@ -9,7 +9,7 @@ import { SETTINGS_KEY } from "@/lib/charts/models";
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    let parsed: { mockMode?: boolean; chartModel?: string; fluxModel?: string } = {};
+    let parsed: { mockMode?: boolean; askModel?: string; fluxModel?: string } = {};
     if (raw) {
       try {
         parsed = JSON.parse(raw) as typeof parsed;
@@ -20,13 +20,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (typeof parsed.mockMode === "boolean") return;
     void fetch("/api/config")
       .then((response) => response.json())
-      .then((config: { mockMode?: boolean; chartModel?: string; fluxModel?: string }) => {
+      .then((config: { mockMode?: boolean; askModel?: string; fluxModel?: string }) => {
         window.localStorage.setItem(
           SETTINGS_KEY,
           JSON.stringify({
             ...parsed,
             mockMode: config.mockMode !== false,
-            chartModel: parsed.chartModel ?? config.chartModel,
+            askModel: parsed.askModel ?? config.askModel,
             fluxModel: parsed.fluxModel ?? config.fluxModel,
           }),
         );

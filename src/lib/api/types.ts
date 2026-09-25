@@ -132,11 +132,11 @@ export interface ChartSpec {
   imageUrl: string | null;
   /** bundled = sample Mermaid. flux = rendered image. mermaid = fallback after a failed render. */
   render: ChartRender;
-  /** Vision-language model that wrote the JSON. Null on the bundled sample. */
+  /** Unused on the live path. Null unless an older card stored a vision model id. */
   vlModelId: string | null;
   /** FLUX checkpoint that painted the image. Null when the card is Mermaid. */
   fluxModelId: string | null;
-  /** Same as vlModelId. Kept so older call sites still read a model id. */
+  /** FLUX id when an image rendered. Null on Mermaid and on the bundled sample. */
   modelId: string | null;
   backend: ChartBackend | null;
   elapsedMs: number | null;

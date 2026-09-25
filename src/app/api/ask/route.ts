@@ -1,4 +1,4 @@
-import { ASK_MODEL, EMBED_MODEL } from "@/lib/charts/models";
+import { ASK_MODEL, EMBED_MODEL, isAskModelId } from "@/lib/charts/models";
 import { parseSidecar, runPython } from "@/lib/charts/sidecar";
 
 export const runtime = "nodejs";
@@ -7,6 +7,7 @@ export async function POST(request: Request) {
   let body: {
     paperId?: string;
     question?: string;
+    askModel?: string;
     chart?: {
       title?: string;
       caption?: string;
@@ -31,7 +32,12 @@ export async function POST(request: Request) {
         question: body.question.trim().slice(0, 1000),
         chart: body.chart ?? null,
         embed_model: process.env.PAPER_LENS_EMBED_MODEL || EMBED_MODEL,
-        ask_model: process.env.PAPER_LENS_ASK_MODEL || ASK_MODEL,
+        ask_model:
+          body.askModel && isAskModelId(body.askModel)
+            ? body.askModel
+            : process.env.PAPER_LENS_ASK_MODEL && isAskModelId(process.env.PAPER_LENS_ASK_MODEL)
+              ? process.env.PAPER_LENS_ASK_MODEL
+              : ASK_MODEL,
         top_k: 4,
       },
       180_000,

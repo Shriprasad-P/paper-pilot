@@ -1,10 +1,4 @@
-import {
-  FLUX_SCHNELL,
-  VLM_4B_MODEL,
-  VLM_8B_MODEL,
-  isChartModelId,
-  isFluxModelId,
-} from "@/lib/charts/models";
+import { FLUX_SCHNELL, isFluxModelId } from "@/lib/charts/models";
 import { parseSidecar, runPython } from "@/lib/charts/sidecar";
 import { groundDiagram, noteForDiagram, type RawDiagram } from "@/lib/charts/spec";
 import type { ChartSpec } from "@/lib/api/types";
@@ -25,7 +19,6 @@ export async function POST(request: Request) {
     status?: string;
     ocr?: boolean;
     paperId?: string;
-    model?: string;
     fluxModel?: string;
     excerpts?: Excerpt[];
   };
@@ -46,13 +39,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const envModel = process.env.PAPER_LENS_VLM_MODEL;
-  const model =
-    body.model && isChartModelId(body.model)
-      ? body.model
-      : envModel && isChartModelId(envModel)
-        ? envModel
-        : VLM_8B_MODEL;
   const envFlux = process.env.PAPER_LENS_FLUX_MODEL;
   const fluxModel =
     body.fluxModel && isFluxModelId(body.fluxModel)
@@ -84,8 +70,6 @@ export async function POST(request: Request) {
       {
         status: "ready",
         paper_id: body.paperId ?? "paper",
-        model,
-        fallback: process.env.PAPER_LENS_VLM_FALLBACK || VLM_4B_MODEL,
         flux_model: fluxModel,
         excerpts,
       },
@@ -117,15 +101,13 @@ export async function POST(request: Request) {
   }
 
   if (!parsed.ok || !parsed.charts) {
-    const unavailable = parsed.code === "runtime_unavailable";
+    const thin = parsed.code === "thin_text";
     return Response.json(
       {
-        error: unavailable
-          ? "Couldn't build charts from the method section. Local MLX is not available on this machine."
-          : parsed.error ?? "Couldn't build charts from the method section.",
-        model: parsed.model ?? model,
+        error: parsed.error ?? "Couldn't build charts from the method section.",
+        model: parsed.model ?? null,
       },
-      { status: 503 },
+      { status: thin ? 422 : 503 },
     );
   }
 
@@ -140,34 +122,38 @@ export async function POST(request: Request) {
       raw.extracted_text_nodes.length === labels.length &&
       raw.extracted_text_nodes.every((label, labelIndex) => label === labels[labelIndex]);
     const fluxImage = sameLabels && raw.render === "flux" && raw.image_url ? raw.image_url : null;
+    const fluxId = fluxImage ? raw.flux_model ?? parsed.flux_model ?? fluxModel : null;
     charts.push({
       ...diagram,
       id: `chart-${diagram.kind}-${index}`,
       imageUrl: fluxImage,
       render: fluxImage ? "flux" : "mermaid",
-      vlModelId: raw.vl_model ?? parsed.model ?? model,
-      fluxModelId: fluxImage ? raw.flux_model ?? parsed.flux_model ?? fluxModel : null,
-      modelId: raw.vl_model ?? parsed.model ?? model,
-      backend: fluxImage ? "flux" : "mlx",
+      vlModelId: null,
+      fluxModelId: fluxId,
+      modelId: fluxId,
+      backend: fluxImage ? "flux" : null,
       elapsedMs: typeof parsed.elapsed_ms === "number" ? parsed.elapsed_ms : null,
       note: noteForDiagram(diagram),
       warnings: fluxImage
         ? diagram.warnings
-        : [...diagram.warnings, "FLUX did not render. Showing the Mermaid diagram from the same nodes."].slice(0, 8),
+        : [
+            ...diagram.warnings.filter((item) => !item.startsWith("FLUX ")),
+            "FLUX unavailable. Showing the Mermaid diagram from the same method text.",
+          ].slice(0, 8),
     });
   }
 
   if (charts.length === 0) {
     return Response.json(
-      { error: "Couldn't build charts from the method section. The diagram was not grounded." },
+      { error: "The method text is too thin for a chart. Nothing was invented." },
       { status: 422 },
     );
   }
 
   return Response.json({
     charts,
-    model: parsed.model ?? model,
-    fluxModel: parsed.flux_model ?? fluxModel,
+    model: charts.some((chart) => chart.render === "flux") ? fluxModel : null,
+    fluxModel: charts.some((chart) => chart.render === "flux") ? fluxModel : null,
     elapsedMs: parsed.elapsed_ms ?? null,
   });
 }

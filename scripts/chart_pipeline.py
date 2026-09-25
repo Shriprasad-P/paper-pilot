@@ -1,24 +1,81 @@
 #!/usr/bin/env python3
-"""Run vision JSON, then FLUX, as separate processes so only one heavy model is resident.
+"""Build one methodology chart from method excerpts, then render it with FLUX.
 
-Peak target is under PAPER_LENS_RAM_BUDGET_GB (default 18) on a 24 GB M4 Pro.
-If FLUX cannot render, the chart keeps Mermaid from the same grounded nodes.
-This script never invents a diagram when the vision model returns nothing.
+No vision-language model is loaded. Ollama chat is asked to unload before mflux
+starts. FLUX runs in its own process and exits before this script returns, so Ask
+can load afterward. Peak target is under PAPER_LENS_RAM_BUDGET_GB (default 18).
+
+If the excerpts do not name a method, nothing is drawn. If FLUX cannot render,
+the same grounded nodes come back as Mermaid.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
+from diagram_ground import ground
+
 ROOT = Path(__file__).resolve().parent
-VLM = ROOT / "vlm_diagram_spec.py"
 FLUX = ROOT / "flux_render.py"
 PUBLIC = ROOT.parent / "public" / "generated"
+
+METHOD = re.compile(
+    r"model|architect|encoder|decoder|attention|embed|position|train|optim|regular|feed-forward|method|figure",
+    re.I,
+)
+
+# Longer phrases first so "encoder stack" wins over "encoder".
+PHRASES = (
+    ("multi-head attention", "model"),
+    ("scaled dot-product", "model"),
+    ("positional encodings", "input"),
+    ("positional encoding", "input"),
+    ("feed-forward", "model"),
+    ("encoder stack", "model"),
+    ("decoder stack", "model"),
+    ("input embeddings", "input"),
+    ("output embeddings", "output"),
+    ("self-attention", "model"),
+    ("layer norm", "process"),
+    ("encoder", "model"),
+    ("decoder", "model"),
+    ("attention", "model"),
+    ("embeddings", "input"),
+    ("embedding", "input"),
+    ("softmax", "process"),
+    ("adam", "process"),
+)
+
+
+def unload_ollama() -> None:
+    """Drop resident Ollama models before FLUX. Missing Ollama is fine."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=0.4) as res:
+            payload = json.loads(res.read().decode())
+    except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+        return
+    for item in payload.get("models") or []:
+        name = item.get("name") or item.get("model")
+        if not name:
+            continue
+        body = json.dumps({"model": name, "keep_alive": 0, "prompt": ""}).encode()
+        req = urllib.request.Request(
+            "http://127.0.0.1:11434/api/generate",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req, timeout=3).read()
+        except (OSError, urllib.error.URLError, TimeoutError):
+            continue
 
 
 def run_json(script: Path, payload: dict, timeout: int) -> dict:
@@ -49,78 +106,147 @@ def safe_paper_id(value: str) -> str:
     return cleaned[:80] or "paper"
 
 
+def build_raw(excerpts: list[dict]) -> dict | None:
+    method_rows = [item for item in excerpts if METHOD.search(item.get("text") or "")]
+    if len(method_rows) < 1:
+        return None
+    nodes = []
+    seen: set[str] = set()
+    for row in method_rows:
+        text = row.get("text") or ""
+        row_id = row.get("id")
+        if not row_id:
+            continue
+        taken: list[tuple[int, int]] = []
+        for needle, role in PHRASES:
+            if len(nodes) >= 6:
+                break
+            match = re.search(rf"(?<![A-Za-z0-9]){re.escape(needle)}(?![A-Za-z0-9])", text, re.I)
+            if not match:
+                continue
+            if any(match.start() < end and match.end() > start for start, end in taken):
+                continue
+            label = text[match.start() : match.end()].strip()
+            taken.append((match.start(), match.end()))
+            key = label.lower()
+            if not label or key in seen:
+                continue
+            seen.add(key)
+            nodes.append(
+                {
+                    "id": f"n{len(nodes) + 1}",
+                    "label": label,
+                    "role": role,
+                    "evidence_ids": [row_id],
+                }
+            )
+        if len(nodes) >= 6:
+            break
+    if len(nodes) < 2:
+        return None
+    edges = [
+        {"from": nodes[index]["id"], "to": nodes[index + 1]["id"], "label": None}
+        for index in range(len(nodes) - 1)
+    ]
+    training = all(node["role"] in {"process", "loss"} for node in nodes)
+    return {
+        "kind": "training_or_inference_loop" if training else "methodology_workflow",
+        "title": "Method",
+        "caption": "",
+        "nodes": nodes,
+        "edges": edges,
+        "warnings": [],
+    }
+
+
+def emit(payload: dict, code: int = 0) -> None:
+    json.dump(payload, sys.stdout)
+    sys.stdout.write("\n")
+    raise SystemExit(code)
+
+
 def main() -> None:
     request = json.load(sys.stdin)
     if request.get("status") != "ready":
-        json.dump(
+        emit(
             {
                 "ok": False,
                 "code": "not_ready",
                 "error": "Charts are only built for a Ready paper.",
             },
-            sys.stdout,
+            2,
         )
-        return
     excerpts = request.get("excerpts") or []
     paper_id = safe_paper_id(str(request.get("paper_id") or "paper"))
-    vl_model = request.get("model") or os.environ.get("PAPER_LENS_VLM_MODEL") or "mlx-community/Qwen3-VL-8B-Instruct-4bit"
-    fallback = request.get("fallback") or os.environ.get("PAPER_LENS_VLM_FALLBACK") or "lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit"
     flux_model = request.get("flux_model") or os.environ.get("PAPER_LENS_FLUX_MODEL") or "flux.1-schnell"
     started = time.perf_counter()
-    vlm = run_json(
-        VLM,
-        {"model": vl_model, "fallback": fallback, "excerpts": excerpts, "images": request.get("images") or []},
-        timeout=300,
-    )
-    if not vlm.get("ok"):
-        json.dump(
+    raw = build_raw(excerpts)
+    grounded = ground(raw, excerpts) if raw else None
+    if not grounded:
+        emit(
             {
                 "ok": False,
-                "error": vlm.get("error") or "Couldn't build charts from the method section.",
-                "code": vlm.get("code") or "vlm_failed",
-                "model": vlm.get("model") or vl_model,
+                "code": "thin_text",
+                "error": "The method text is too thin for a chart. Nothing was invented.",
             },
-            sys.stdout,
+            2,
         )
-        sys.stdout.write("\n")
-        raise SystemExit(2)
-    charts = []
+    unload_ollama()
     out_dir = PUBLIC / paper_id
-    for index, chart in enumerate(vlm.get("charts") or []):
-        image_url = None
-        flux_id = None
-        filename = f"{chart['kind']}-{index}.png"
-        target = out_dir / filename
-        rendered = run_json(
-            FLUX,
-            {"model": flux_model, "prompt": chart.get("dense_flux_prompt") or "", "output": str(target)},
-            timeout=300,
+    filename = f"{grounded['kind']}-0.png"
+    target = out_dir / filename
+    rendered = run_json(
+        FLUX,
+        {"model": flux_model, "prompt": grounded.get("dense_flux_prompt") or "", "output": str(target)},
+        timeout=300,
+    )
+    image_url = None
+    flux_id = None
+    if rendered.get("ok") and target.exists():
+        image_url = f"/generated/{paper_id}/{filename}"
+        flux_id = rendered.get("model") or flux_model
+        grounded["render"] = "flux"
+    else:
+        grounded["render"] = "mermaid"
+        grounded.setdefault("warnings", []).append(
+            "FLUX unavailable. Showing the Mermaid diagram from the same method text."
         )
-        if rendered.get("ok") and target.exists():
-            image_url = f"/generated/{paper_id}/{filename}"
-            flux_id = rendered.get("model") or flux_model
-            chart["render"] = "flux"
-        else:
-            chart["render"] = "mermaid"
-            chart.setdefault("warnings", []).append(
-                "FLUX did not render. Showing the Mermaid diagram from the same nodes."
-            )
-        chart["image_url"] = image_url
-        chart["vl_model"] = vlm.get("model")
-        chart["flux_model"] = flux_id
-        charts.append(chart)
-    json.dump(
+    grounded["image_url"] = image_url
+    grounded["vl_model"] = None
+    grounded["flux_model"] = flux_id
+    emit(
         {
             "ok": True,
-            "model": vlm.get("model"),
-            "flux_model": flux_model,
+            "model": flux_id or flux_model,
+            "flux_model": flux_id,
+            "render": grounded["render"],
             "elapsed_ms": int((time.perf_counter() - started) * 1000),
-            "charts": charts,
-        },
-        sys.stdout,
+            "charts": [grounded],
+        }
     )
-    sys.stdout.write("\n")
+
+
+def self_test() -> None:
+    excerpts = [
+        {"id": "c-enc", "text": "The encoder is composed of a stack of identical layers."},
+        {"id": "c-pos", "text": "We add positional encodings to the input embeddings."},
+        {"id": "c-noise", "text": "Page header. Volume 30. NIPS 2017."},
+    ]
+    raw = build_raw(excerpts)
+    assert raw is not None
+    grounded = ground(raw, excerpts)
+    assert grounded is not None
+    labels = [node["label"].lower() for node in grounded["nodes"]]
+    assert "encoder" in labels
+    assert any("positional" in label for label in labels)
+    assert len(grounded["nodes"]) >= 2
+    thin = build_raw([{"id": "c-noise", "text": "Page header. Volume 30. NIPS 2017."}])
+    assert thin is None
+    print("chart-pipeline text ok")
 
 
 if __name__ == "__main__":
-    main()
+    if "--self-test" in sys.argv:
+        self_test()
+    else:
+        main()

@@ -19,7 +19,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STORE = ROOT / ".data" / "rag"
 EMBED_MODEL = os.environ.get("PAPER_LENS_EMBED_MODEL", "nomic-embed-text")
-ASK_MODEL = os.environ.get("PAPER_LENS_ASK_MODEL", "qwen3:4b")
+ASK_MODEL = "llama3.2:3b"
+ALLOWED_ASK = {"llama3.2:3b", "gemma2:2b"}
 
 
 def post_json(url: str, payload: dict, timeout: int = 120) -> dict:
@@ -170,7 +171,8 @@ def main() -> None:
     op = request.get("op")
     paper_id = safe_id(str(request.get("paper_id") or ""))
     embed_model = request.get("embed_model") or EMBED_MODEL
-    ask_model = request.get("ask_model") or ASK_MODEL
+    requested = request.get("ask_model") or os.environ.get("PAPER_LENS_ASK_MODEL") or ASK_MODEL
+    ask_model = requested if requested in ALLOWED_ASK else ASK_MODEL
     if not paper_id:
         json.dump({"ok": False, "error": "Missing paper id.", "code": "bad_request"}, sys.stdout)
         raise SystemExit(2)

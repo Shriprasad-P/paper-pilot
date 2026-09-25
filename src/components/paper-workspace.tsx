@@ -323,7 +323,6 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                           status: ocrPaper ? "partial" : paper.summary.status,
                           ocr: ocrPaper,
                           paperId: paper.summary.id,
-                          model: settings.chartModel,
                           fluxModel: settings.fluxModel,
                           excerpts: methodExcerpts(paper.chunks),
                         }),
@@ -338,7 +337,12 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                         return;
                       }
                       setPaperCharts(paper.summary.id, data.charts, null);
-                      toast(data.model ? `Charts rebuilt with ${data.model}.` : "Charts rebuilt.");
+                      const fluxCard = data.charts.some((chart) => chart.render === "flux");
+                      toast(
+                        fluxCard && data.model
+                          ? `Charts rebuilt with ${data.model}.`
+                          : "FLUX unavailable. Showing a Mermaid diagram from the method text.",
+                      );
                     } catch {
                       toast("Couldn't build charts from the method section.");
                     } finally {
