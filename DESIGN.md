@@ -27,7 +27,8 @@ Uploaded PDFs use the status **Not parsed** (never Ready). The row title is the 
 - IEEE and Springer stop on Fetching with “Paywalled — upload PDF instead” and a Retry action.
 - BERT (`1810.04805`) finishes Partial, with “Couldn't parse equations on page 4” and a chart failure.
 - Unknown hosts fail with “Couldn’t retrieve full text from this host. Upload the PDF instead.”
-- A PDF upload finishes in the **Not parsed** state. The job pill uses that same status. The workspace shows the bundled Vaswani et al. excerpts and says so. It does not pretend the file was read.
+- A PDF upload finishes in the **Not parsed** state when mock mode is on, or when Apple OCR cannot run. The workspace shows the bundled Vaswani et al. excerpts and says so.
+- With mock mode off on a Mac, Apple OCR reads the PDF. The paper becomes Partial, Sources say “Text from Apple OCR,” and a banner says layout and equations may be incomplete. No publisher abstract is invented. Charts stay empty unless that text names a method.
 
 ### Paper workspace (`/papers/[id]`)
 

@@ -58,12 +58,14 @@ export type ChartSettings = {
   mockMode: boolean;
   chartModel: ChartModelId;
   fluxModel: FluxModelId;
+  appleOcr: boolean;
 };
 
 export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   mockMode: true,
   chartModel: VLM_8B_MODEL,
   fluxModel: FLUX_SCHNELL,
+  appleOcr: true,
 };
 
 export function readChartSettings(): ChartSettings {
@@ -75,6 +77,7 @@ export function readChartSettings(): ChartSettings {
       mockMode?: boolean;
       chartModel?: string;
       fluxModel?: string;
+      appleOcr?: boolean;
     };
     return {
       mockMode: parsed.mockMode !== false,
@@ -84,6 +87,7 @@ export function readChartSettings(): ChartSettings {
       fluxModel: parsed.fluxModel && isFluxModelId(parsed.fluxModel)
         ? parsed.fluxModel
         : DEFAULT_CHART_SETTINGS.fluxModel,
+      appleOcr: parsed.appleOcr !== false,
     };
   } catch {
     return DEFAULT_CHART_SETTINGS;

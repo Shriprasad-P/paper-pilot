@@ -15,6 +15,7 @@ import type {
 import { scopeKey } from "@/lib/api/ask";
 import { attentionPaper } from "@/lib/mock/attention";
 import { bertPaper, paywalledPaper } from "@/lib/mock/bert";
+import { paperFromOcr, type OcrPage } from "@/lib/ocr/paper";
 
 const STAGES: IngestStage[] = [
   "fetching",
@@ -149,6 +150,25 @@ function patchJob(id: string, patch: Partial<IngestJob>) {
 
 function addPaper(paper: PaperRecord) {
   state = { ...state, extras: [paper, ...state.extras] };
+}
+
+export function finishOcrUpload(filename: string, pages: OcrPage[]): { paperId: string; jobId: string } | null {
+  const paper = paperFromOcr(filename, pages);
+  if (!paper) return null;
+  const jobId = crypto.randomUUID();
+  const job: IngestJob = {
+    id: jobId,
+    input: { kind: "pdf", name: filename, provider: "pdf" },
+    stage: "ready",
+    stageIndex: STAGES.length - 1,
+    error: null,
+    warnings: paper.summary.warnings,
+    paperId: paper.summary.id,
+    done: true,
+  };
+  state = { ...state, extras: [paper, ...state.extras], jobs: [job, ...state.jobs] };
+  emit();
+  return { paperId: paper.summary.id, jobId };
 }
 
 function sleep(ms: number) {

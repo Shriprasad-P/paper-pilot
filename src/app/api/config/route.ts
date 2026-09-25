@@ -12,6 +12,7 @@ export function GET() {
   const flux = process.env.PAPER_LENS_FLUX_MODEL;
   return Response.json({
     mockMode: process.env.PAPER_LENS_MOCK !== "0",
+    appleOcrAvailable: process.platform === "darwin",
     chartModel: vl && isChartModelId(vl) ? vl : VLM_8B_MODEL,
     fluxModel: flux && isFluxModelId(flux) ? flux : FLUX_SCHNELL,
   });

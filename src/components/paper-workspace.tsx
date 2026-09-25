@@ -7,7 +7,8 @@ import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { AskScope, DetailLevel } from "@/lib/api/types";
 import { paperLensClient } from "@/lib/api/client";
-import { getJob, getPaper, ingest, reprocess, setPaperCharts, stageLabel, usePaperStore } from "@/lib/paper-store";
+import { getJob, getPaper, reprocess, setPaperCharts, stageLabel, usePaperStore } from "@/lib/paper-store";
+import { uploadPdfs } from "@/lib/ocr/upload";
 import { readChartSettings } from "@/lib/charts/models";
 import { methodExcerpts } from "@/lib/charts/spec";
 import { CompactPdfDrop } from "@/components/ingest-dropzone";
@@ -238,13 +239,13 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
               />
             ) : view === "walkthrough" ? (
               <div className="mx-auto max-w-3xl">
-                {paper.summary.status === "unparsed" && paper.demoNote ? (
+                {paper.demoNote && (paper.summary.status === "unparsed" || paper.summary.badge === "Apple OCR") ? (
                   <SampleBanner text={paper.demoNote} />
                 ) : null}
                 <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-xs font-medium tracking-wide text-primary uppercase">
-                      AI-generated explanation
+                      {paper.summary.badge === "Apple OCR" ? "Text from Apple OCR" : "AI-generated explanation"}
                     </p>
                     <h2 className="mt-1 font-serif text-2xl">Readable walkthrough</h2>
                   </div>
@@ -293,12 +294,17 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                 rebuilding={rebuilding}
                 onRegenerate={() => {
                   if (!paper) return;
-                  if (paper.summary.status !== "ready") {
+                  const ocrPaper = paper.summary.badge === "Apple OCR";
+                  if (paper.summary.status !== "ready" && !ocrPaper) {
                     toast(
                       paper.summary.status === "unparsed"
                         ? "This file was not parsed. Charts stay the bundled sample."
                         : "Couldn't build charts from the method section. The text walkthrough is still available.",
                     );
+                    return;
+                  }
+                  if (ocrPaper && methodExcerpts(paper.chunks, { strict: true }).length < 2) {
+                    toast("The OCR text doesn’t name a method, so no diagram was built.");
                     return;
                   }
                   const settings = readChartSettings();
@@ -314,7 +320,8 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                          status: paper.summary.status,
+                          status: ocrPaper ? "partial" : paper.summary.status,
+                          ocr: ocrPaper,
                           paperId: paper.summary.id,
                           model: settings.chartModel,
                           fluxModel: settings.fluxModel,
@@ -348,7 +355,7 @@ export function PaperWorkspace({ paperId }: { paperId: string }) {
               />
             ) : view === "equations" ? (
               <div className="mx-auto max-w-6xl">
-                {paper.summary.status === "unparsed" && paper.demoNote ? (
+                {paper.demoNote && (paper.summary.status === "unparsed" || paper.summary.badge === "Apple OCR") ? (
                   <SampleBanner text={paper.demoNote} />
                 ) : null}
                 <h2 className="font-serif text-2xl">Equations</h2>
@@ -473,7 +480,7 @@ function Overview({
   const [question, setQuestion] = useState("");
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      {paper.summary.status === "unparsed" && paper.demoNote ? (
+      {paper.demoNote && (paper.summary.status === "unparsed" || paper.summary.badge === "Apple OCR") ? (
         <SampleBanner text={paper.demoNote} />
       ) : null}
       <form
@@ -652,8 +659,9 @@ function BlockedState({
         <CompactPdfDrop
           busy={Boolean(job && !job.done)}
           onFile={(file) => {
-            const [created] = ingest([{ kind: "pdf", name: file.name, provider: "pdf" }]);
-            setJobId(created.id);
+            void uploadPdfs([file]).then((id) => {
+              if (id) setJobId(id);
+            });
           }}
         />
         {job && !job.done ? (

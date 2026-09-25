@@ -30,9 +30,10 @@ export const DEFAULT_VISUAL_STYLE =
 const METHOD_SECTION =
   /model|architect|encoder|decoder|attention|embed|position|train|optim|regular|feed-forward|method|figure/i;
 
-export function methodExcerpts(chunks: EvidenceChunk[]) {
-  const picked = chunks.filter((chunk) => METHOD_SECTION.test(`${chunk.section}\n${chunk.text}`));
-  const rows = (picked.length > 0 ? picked : chunks).slice(0, 16);
+export function methodExcerpts(chunks: EvidenceChunk[], options?: { strict?: boolean }) {
+  const picked = chunks.filter((chunk) => METHOD_SECTION.test(chunk.text));
+  const source = picked.length > 0 ? picked : options?.strict ? [] : chunks;
+  const rows = source.slice(0, 16);
   return rows.map((chunk) => ({
     id: chunk.id,
     section: chunk.section,

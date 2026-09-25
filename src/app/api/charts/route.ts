@@ -23,6 +23,7 @@ type PipelineChart = RawDiagram & {
 export async function POST(request: Request) {
   let body: {
     status?: string;
+    ocr?: boolean;
     paperId?: string;
     model?: string;
     fluxModel?: string;
@@ -34,7 +35,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "Expected JSON." }, { status: 400 });
   }
 
-  if (body.status !== "ready") {
+  const ocrPartial = body.status === "partial" && body.ocr === true;
+  if (body.status !== "ready" && !ocrPartial) {
     return Response.json(
       {
         error:

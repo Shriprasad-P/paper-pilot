@@ -12,6 +12,7 @@ import {
   stageLabel,
   usePaperStore,
 } from "@/lib/paper-store";
+import { uploadPdfs } from "@/lib/ocr/upload";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,25 +79,19 @@ export function IngestDropzone() {
   }
 
   function submit() {
-    const items = [
-      ...files.map((file) => ({
-        kind: "pdf" as const,
-        name: file.name,
-        provider: "pdf" as const,
-      })),
-      ...(url.trim()
-        ? [
-            {
-              kind: "url" as const,
-              name: url.trim(),
-              url: url.trim(),
-              provider: activeProvider,
-            },
-          ]
-        : []),
-    ];
-    if (items.length === 0) return;
-    ingest(items);
+    const queued = files.slice();
+    if (queued.length === 0 && !url.trim()) return;
+    if (queued.length > 0) void uploadPdfs(queued);
+    if (url.trim()) {
+      ingest([
+        {
+          kind: "url",
+          name: url.trim(),
+          url: url.trim(),
+          provider: activeProvider,
+        },
+      ]);
+    }
     setFiles([]);
     setUrl("");
     setProviderLocked(false);
@@ -333,7 +328,7 @@ export function CompactPdfDrop({
     >
       <p className="font-medium">Replace this link with a PDF.</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        The file is not parsed. Opening it shows the bundled sample reading.
+        On a Mac with mock mode off, Apple OCR reads the text. Otherwise the file stays Not parsed and the bundled sample is shown.
       </p>
       <label className="mt-4 inline-flex h-11 cursor-pointer items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground">
         {busy ? "Reading file…" : "Browse PDF"}

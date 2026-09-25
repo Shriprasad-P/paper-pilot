@@ -20,6 +20,7 @@ import {
 type Settings = {
   mode: "local" | "cloud";
   mockMode: boolean;
+  appleOcr: boolean;
   chartModel: ChartModelId;
   fluxModel: FluxModelId;
   chatModel: string;
@@ -31,6 +32,7 @@ type Settings = {
 const DEFAULTS: Settings = {
   mode: "local",
   mockMode: DEFAULT_CHART_SETTINGS.mockMode,
+  appleOcr: DEFAULT_CHART_SETTINGS.appleOcr,
   chartModel: DEFAULT_CHART_SETTINGS.chartModel,
   fluxModel: DEFAULT_CHART_SETTINGS.fluxModel,
   chatModel: "Qwen/Qwen3-0.6B",
@@ -44,6 +46,7 @@ export function SettingsView() {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [apiKey, setApiKey] = useState("");
   const [ready, setReady] = useState(false);
+  const [ocrOnThisMachine, setOcrOnThisMachine] = useState<boolean | null>(null);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
@@ -63,6 +66,7 @@ export function SettingsView() {
             typeof parsed.fluxModel === "string" && isFluxModelId(parsed.fluxModel)
               ? parsed.fluxModel
               : DEFAULTS.fluxModel,
+          appleOcr: parsed.appleOcr !== false,
         });
         setApiKey(parsed.apiKey ?? "");
       } catch {
@@ -70,6 +74,12 @@ export function SettingsView() {
       }
     }
     setReady(true);
+    void fetch("/api/config")
+      .then((response) => response.json())
+      .then((config: { appleOcrAvailable?: boolean }) => {
+        setOcrOnThisMachine(config.appleOcrAvailable === true);
+      })
+      .catch(() => setOcrOnThisMachine(false));
   }, []);
 
   function persist(next: Settings) {
@@ -111,6 +121,25 @@ export function SettingsView() {
           {settings.mockMode ? "On" : "Off"}
         </button>
       </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <span className="text-sm font-medium">Apple OCR for PDFs</span>
+        <button
+          type="button"
+          aria-pressed={settings.appleOcr}
+          disabled={!ready || settings.mockMode}
+          onClick={() => persist({ ...settings, appleOcr: !settings.appleOcr })}
+          className="h-10 rounded-full bg-foreground px-4 text-sm text-background disabled:opacity-60"
+        >
+          {settings.appleOcr ? "On" : "Off"}
+        </button>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+        {ocrOnThisMachine
+          ? "With mock mode off, a dropped PDF is read with Apple Vision. Sources are labeled “Text from Apple OCR.”"
+          : "This machine is not a Mac, so OCR is skipped and the file stays Not parsed."}{" "}
+        Qwen-VL is not used to read the pages.
+      </p>
 
       <label className="mt-6 block text-sm">
         <span className="font-medium">Chart model</span>

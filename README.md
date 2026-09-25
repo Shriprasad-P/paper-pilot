@@ -92,6 +92,12 @@ npx next dev --turbopack -H 0.0.0.0 -p 43123
 
 `scripts/setup_mac.sh` creates `.venv`, installs `mlx-vlm`, downloads `mlx-community/Qwen3-VL-8B-Instruct-4bit`, runs one small `mflux-generate` so FLUX.1 schnell weights land in `~/.cache/huggingface/hub/`, and pulls `nomic-embed-text` plus `qwen3:4b`. The 4B vision model is the fallback and should already be in that cache. Next spawns `.venv/bin/python` when that file exists, or `PAPER_LENS_PYTHON` if you set it. `PAPER_LENS_MOCK=0` turns mock mode off on the first visit, before a choice is saved in the browser.
 
+## Apple OCR
+
+PDF text on a Mac does not go through Qwen-VL. With mock mode off and **Apple OCR for PDFs** on, a dropped PDF is rendered and read by Apple Vision (`scripts/apple_ocr.swift`, called from `scripts/apple_ocr.py`). Sources are labeled “Text from Apple OCR.” The paper stays Partial: equations are not recovered, and charts stay empty unless that text names a method, in which case Regenerate still does vision JSON then FLUX. There is no cloud OCR.
+
+Mock mode on does not call OCR. A paywalled link with no PDF still has no invented abstract. On Linux or any non-Mac host, OCR refuses and the upload stays Not parsed, showing the bundled sample instead of made-up text.
+
 The endpoint and API key in Settings stay disabled. Keys already in `localStorage` under `paper-lens-settings` are not sent.
 
 ## API surface
