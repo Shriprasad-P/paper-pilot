@@ -44,3 +44,5 @@ next-env.d.ts
 .data/
 public/generated/*
 !public/generated/.gitkeep
+__pycache__/
+*.pyc
