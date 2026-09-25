@@ -1,5 +1,14 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
+
+function pythonBin(): string {
+  const fromEnv = process.env.PAPER_LENS_PYTHON;
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+  const venv = path.join(process.cwd(), ".venv", "bin", "python");
+  if (fs.existsSync(venv)) return venv;
+  return fromEnv || "python3";
+}
 
 export function runPython(
   script: string,
@@ -7,8 +16,9 @@ export function runPython(
   timeoutMs: number,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const file = path.join(process.cwd(), "scripts", script);
+  const python = pythonBin();
   return new Promise((resolve, reject) => {
-    const child = spawn("python3", [file], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(python, [file], { stdio: ["pipe", "pipe", "pipe"] });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     const timer = setTimeout(() => {

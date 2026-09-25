@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STORE = ROOT / ".data" / "rag"
 EMBED_MODEL = os.environ.get("PAPER_LENS_EMBED_MODEL", "nomic-embed-text")
-ASK_MODEL = os.environ.get("PAPER_LENS_ASK_MODEL", "qwen2.5:1.5b")
+ASK_MODEL = os.environ.get("PAPER_LENS_ASK_MODEL", "qwen3:4b")
 
 
 def post_json(url: str, payload: dict, timeout: int = 120) -> dict:

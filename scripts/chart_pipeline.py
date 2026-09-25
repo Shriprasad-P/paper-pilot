@@ -89,7 +89,7 @@ def main() -> None:
     for index, chart in enumerate(vlm.get("charts") or []):
         image_url = None
         flux_id = None
-        filename = f"{chart['kind']}-{index}.webp"
+        filename = f"{chart['kind']}-{index}.png"
         target = out_dir / filename
         rendered = run_json(
             FLUX,

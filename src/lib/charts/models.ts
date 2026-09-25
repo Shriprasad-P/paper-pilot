@@ -8,7 +8,7 @@ export const FLUX_KLEIN = "flux.2-klein";
 
 export const EMBED_MODEL = "nomic-embed-text";
 
-export const ASK_MODEL = "qwen2.5:1.5b";
+export const ASK_MODEL = "qwen3:4b";
 
 export const RAM_BUDGET_GB = 18;
 

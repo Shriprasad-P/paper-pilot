@@ -49,7 +49,7 @@ Mock mode off, on Apple Silicon:
 3. `scripts/flux_render.py` loads only FLUX, writes a WebP under `public/generated/`, and exits.
 4. If FLUX is missing or runs out of memory, the card shows Mermaid from that same JSON and says so.
 5. If the vision model is missing, Regenerate keeps the last chart and toasts. It does not invent a diagram.
-6. Ask indexes chunks with `nomic-embed-text`, then answers with `qwen2.5:1.5b` from the retrieved excerpts. Empty retrieval is a refusal.
+6. Ask indexes chunks with `nomic-embed-text`, then answers with `qwen3:4b` (already on this Mac) from the retrieved excerpts. Empty retrieval is a refusal. `qwen2.5:1.5b` still works if you set `PAPER_LENS_ASK_MODEL` to that id.
 
 Peak target is under 18 GB so macOS keeps headroom on a 24 GB machine. The 8B vision model and FLUX are never loaded together. If 8B runs out of memory, the vision sidecar retries the 4B model and the footer records which one ran.
 
@@ -60,12 +60,12 @@ Peak target is under 18 GB so macOS keeps headroom on a 24 GB machine. The 8B vi
 | Render, default | `flux.1-schnell` | mflux name `schnell`, 4-bit, 4 steps. |
 | Render, optional | `flux.2-klein` | Used only when that mflux config is installed. |
 | Embeddings | `nomic-embed-text` | Ollama. After the chart sidecars exit. |
-| Ask | `qwen2.5:1.5b` | Ollama. Answers only from retrieved chunks. |
+| Ask | `qwen3:4b` | Ollama. Already cached on the Mac this desk was aimed at. Answers only from retrieved chunks. |
 
 ```bash
 pip install mlx-vlm mflux
 ollama pull nomic-embed-text
-ollama pull qwen2.5:1.5b
+ollama pull qwen3:4b
 ```
 
 Download the MLX and FLUX weights into the Hugging Face cache before Regenerate. This repo does not download them.
@@ -75,11 +75,22 @@ PAPER_LENS_VLM_MODEL=mlx-community/Qwen3-VL-8B-Instruct-4bit
 PAPER_LENS_VLM_FALLBACK=lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit
 PAPER_LENS_FLUX_MODEL=flux.1-schnell
 PAPER_LENS_EMBED_MODEL=nomic-embed-text
-PAPER_LENS_ASK_MODEL=qwen2.5:1.5b
+PAPER_LENS_ASK_MODEL=qwen3:4b
 PAPER_LENS_RAM_BUDGET_GB=18
 ```
 
 Set `PAPER_LENS_FLUX_MODEL=flux.2-klein` when that checkpoint is installed. Partial, paywalled, failed, and Not parsed papers never start this pipeline.
+
+On the Mac, from the repo root:
+
+```bash
+cp .env.example .env.local
+bash scripts/setup_mac.sh
+npm install
+npx next dev --turbopack -H 0.0.0.0 -p 43123
+```
+
+`scripts/setup_mac.sh` creates `.venv`, installs `mlx-vlm`, downloads `mlx-community/Qwen3-VL-8B-Instruct-4bit`, runs one small `mflux-generate` so FLUX.1 schnell weights land in `~/.cache/huggingface/hub/`, and pulls `nomic-embed-text` plus `qwen3:4b`. The 4B vision model is the fallback and should already be in that cache. Next spawns `.venv/bin/python` when that file exists, or `PAPER_LENS_PYTHON` if you set it. `PAPER_LENS_MOCK=0` turns mock mode off on the first visit, before a choice is saved in the browser.
 
 The endpoint and API key in Settings stay disabled. Keys already in `localStorage` under `paper-lens-settings` are not sent.
 
