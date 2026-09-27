@@ -54,6 +54,13 @@ PHRASES = (
     ("adam", "process"),
 )
 
+# ponytail: comma lists and Title Case runs only. A parser belongs here when a method is one long sentence with neither.
+_STOP = {
+    "the", "and", "for", "with", "that", "this", "from", "were", "was", "are",
+    "which", "used", "using", "other", "like", "such", "taken", "into", "over",
+    "between", "during", "after", "before", "their", "these", "those", "than", "of",
+}
+
 
 def unload_ollama() -> None:
     """Drop resident Ollama models before FLUX. Missing Ollama is fine."""
@@ -143,6 +150,8 @@ def build_raw(excerpts: list[dict]) -> dict | None:
         if len(nodes) >= 6:
             break
     if len(nodes) < 2:
+        nodes = _phrases_from_text(method_rows, nodes)
+    if len(nodes) < 2:
         return None
     edges = [
         {"from": nodes[index]["id"], "to": nodes[index + 1]["id"], "label": None}
@@ -157,6 +166,64 @@ def build_raw(excerpts: list[dict]) -> dict | None:
         "edges": edges,
         "warnings": [],
     }
+
+
+def _clip_phrase(piece: str) -> str | None:
+    words = re.findall(r"[A-Za-z][A-Za-z0-9-]*", piece)
+    cut: list[str] = []
+    for word in words:
+        if word.lower() in _STOP:
+            break
+        cut.append(word)
+        if len(cut) == 4:
+            break
+    words = cut
+    if not words or all(word.lower() in _STOP for word in words):
+        return None
+    label = " ".join(words)
+    return label if len(label) >= 3 else None
+
+
+def _add_node(nodes: list[dict], seen: set[str], label: str, row_id: str) -> None:
+    if len(nodes) >= 6:
+        return
+    key = label.lower()
+    if key in seen:
+        return
+    seen.add(key)
+    nodes.append(
+        {
+            "id": f"n{len(nodes) + 1}",
+            "label": label,
+            "role": "other",
+            "evidence_ids": [row_id],
+        }
+    )
+
+
+def _phrases_from_text(rows: list[dict], nodes: list[dict]) -> list[dict]:
+    seen = {node["label"].lower() for node in nodes}
+    for row in rows:
+        text = row.get("text") or ""
+        row_id = row.get("id")
+        if not row_id:
+            continue
+        found: list[str] = []
+        for match in re.finditer(r"(?:like|including|such as)\s+([^.]{0,180})", text, re.I):
+            for piece in re.split(r",|\band\b", match.group(1)):
+                label = _clip_phrase(piece)
+                if label:
+                    found.append(label)
+        if len(nodes) + len(found) < 2:
+            for match in re.finditer(r"\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b", text):
+                found.append(match.group(0))
+        for label in found:
+            clipped = _clip_phrase(label)
+            if clipped and clipped.lower() in text.lower():
+                _add_node(nodes, seen, clipped, row_id)
+            if len(nodes) >= 6:
+                return nodes
+    return nodes
 
 
 def emit(payload: dict, code: int = 0) -> None:
@@ -242,6 +309,13 @@ def self_test() -> None:
     assert len(grounded["nodes"]) >= 2
     thin = build_raw([{"id": "c-noise", "text": "Page header. Volume 30. NIPS 2017."}])
     assert thin is None
+    geo_text = (
+        "Materials and methods. Regression used explanatory variables like "
+        "aerosol index, NO2, mean patch size, patch density."
+    )
+    geo = build_raw([{"id": "m1", "text": geo_text}])
+    assert geo is not None and len(geo["nodes"]) >= 2
+    assert all(node["label"].lower() in geo_text.lower() for node in geo["nodes"])
     print("chart-pipeline text ok")
 
 
