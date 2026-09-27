@@ -19,13 +19,31 @@ npx next dev --turbopack -H 0.0.0.0 -p 43123
 
 Open [http://127.0.0.1:43123](http://127.0.0.1:43123).
 
+## Results
+
+Live desk on an Apple Silicon Mac, mock mode off. These are screenshots from that run, not mock diagrams.
+
+**Attention Is All You Need.** Regenerate built one methodology chart with FLUX.1 schnell in 51.1s. The labels under the figure are the grounded spans: encoder, decoder, attention, Self-attention, feed-forward, Scaled Dot-Product. Ask answered from a retrieved excerpt (section 3.2.1, page 4).
+
+![FLUX chart and an Ask answer that cites a retrieved excerpt](docs/results/ask-excerpt.png)
+
+**Apple OCR.** A dropped IEEE PDF (urban heat islands, Delhi and Bangalore) stayed Partial. Sources are labeled “Text from Apple OCR.”
+
+![Sources labeled Text from Apple OCR](docs/results/apple-ocr-sources.png)
+
+Regenerate then drew a methodology chart from method terms in that OCR text: aerosol index, NO2, mean patch size, edge density, shape index.
+
+![FLUX chart from Apple OCR method text](docs/results/ocr-flux-chart.png)
+
+Letters inside the pictures are FLUX’s rendering of those labels. A label that is not in the cited excerpt is not added.
+
 ## What you can click through
 
 The library starts with three items:
 
 | Paper | What the demo does |
 | --- | --- |
-| Attention Is All You Need (`arXiv:1706.03762`) | Full walkthrough, seven equations, three Mermaid charts, Ask Chart |
+| Attention Is All You Need (`arXiv:1706.03762`) | Full walkthrough, seven equations, Ask Chart. With mock mode off, Regenerate replaces the methodology chart with a FLUX image |
 | BERT (`arXiv:1810.04805`) | Walkthrough only. Equation parse and charts fail on purpose |
 | Example IEEE link | Paywall. No abstract or explanation is invented |
 
@@ -34,7 +52,7 @@ On **Add paper**, try:
 - `https://arxiv.org/abs/1706.03762`
 - `https://arxiv.org/abs/1810.04805`
 - any `ieeexplore.ieee.org` or Springer URL (paywall message)
-- a PDF (processing finishes as Not parsed: the library and workspace say the file was not read and show the bundled Transformer sample)
+- a PDF. On a Mac with mock mode off and Apple OCR on, the file is Partial and sources say “Text from Apple OCR.” Otherwise it stays Not parsed and shows the bundled Transformer sample
 
 `/` focuses Ask. Esc closes the drawer.
 
