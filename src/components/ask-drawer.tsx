@@ -15,13 +15,11 @@ import { MathText } from "@/components/math-text";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
-const recentClaims = new Map<string, number>();
+const inFlightQuestions = new Set<string>();
 
 function claimQuestion(key: string) {
-  const now = Date.now();
-  const previous = recentClaims.get(key) ?? 0;
-  if (now - previous < 1000) return false;
-  recentClaims.set(key, now);
+  if (inFlightQuestions.has(key)) return false;
+  inFlightQuestions.add(key);
   return true;
 }
 
@@ -175,9 +173,32 @@ export function AskDrawer({
             : message,
         ),
       );
+    } catch (error) {
+      const stopped = controller.signal.aborted;
+      const detail = error instanceof Error ? error.message : "Unknown error.";
+      const current = getThread(paper.summary.id, scope);
+      setThread(
+        paper.summary.id,
+        scope,
+        current.map((message) =>
+          message.id === assistantId
+            ? {
+                ...message,
+                content: stopped
+                  ? message.content || "Stopped before an answer was received."
+                  : message.content
+                    ? `${message.content}\n\nCould not finish the answer: ${detail}`
+                    : `Could not get an answer: ${detail}`,
+                streaming: false,
+                stopped,
+              }
+            : message,
+        ),
+      );
     } finally {
       setBusy(false);
       abortRef.current = null;
+      inFlightQuestions.delete(claim);
     }
   }
 
