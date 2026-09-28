@@ -8,12 +8,14 @@ scripts/apple_ocr.swift. Anywhere else it refuses.
 from __future__ import annotations
 
 import json
+import os
 import platform
 import subprocess
 import sys
 from pathlib import Path
 
 SWIFT = Path(__file__).with_name("apple_ocr.swift")
+OCR_BINARY = os.environ.get("PAPER_LENS_OCR_BINARY")
 
 
 def emit(payload: dict, code: int = 0) -> None:
@@ -74,8 +76,9 @@ def main() -> None:
         emit({"ok": False, "error": "Missing PDF.", "code": "bad_request", "pages": []}, 2)
     if not SWIFT.exists():
         emit({"ok": False, "error": "The Apple OCR helper is missing.", "code": "ocr_failed", "pages": []}, 2)
+    command = [OCR_BINARY, pdf_path] if OCR_BINARY else ["swift", str(SWIFT), pdf_path]
     completed = subprocess.run(
-        ["swift", str(SWIFT), pdf_path],
+        command,
         capture_output=True,
         text=True,
         timeout=180,

@@ -2,12 +2,15 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parseSidecar, runPython } from "@/lib/charts/sidecar";
+import { rejectCrossOriginPost } from "@/lib/api/same-origin";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossOriginPost(request);
+  if (rejected) return rejected;
   let form: FormData;
   try {
     form = await request.formData();

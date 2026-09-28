@@ -4,6 +4,8 @@ A reading desk for research papers. Upload a PDF or paste an arXiv, IEEE, or Spr
 
 This repository is a local reading desk for Apple Silicon. Mock mode uses stored excerpts and bundled diagrams. With mock mode off, a Mac reads PDFs with Apple OCR, embeds with `nomic-embed-text`, answers with `llama3.2:3b`, and draws methodology charts with FLUX.1 schnell. Those heavy steps never run together. Nothing here calls a cloud model.
 
+![Paper Lens local architecture and workflow](docs/paper-lens-architecture.png)
+
 ## Run locally
 
 ```bash
@@ -14,7 +16,7 @@ npm run dev
 The dev server in this environment is started on port **43123**. Locally, `npm run dev` uses Next.js’s default port unless you pass one:
 
 ```bash
-npx next dev --turbopack -H 0.0.0.0 -p 43123
+npx next dev -H 127.0.0.1 -p 43123
 ```
 
 Open [http://127.0.0.1:43123](http://127.0.0.1:43123).
@@ -73,7 +75,7 @@ No vision-language model is required for charts or Ask.
 | Role | Id | Notes |
 | --- | --- | --- |
 | PDF text | Apple Vision | macOS only. Sources say “Text from Apple OCR.” |
-| Render | `flux.1-schnell` | mflux name `schnell`, quantize 4. Own process. Weights stay in the Hugging Face cache. |
+| Render | `flux.1-schnell` | mflux name `schnell`, quantize 4. Own process. Development uses the Hugging Face cache; the standalone app bundles the weights. |
 | Render, optional | `flux.2-klein` | Used only when that checkpoint is already installed. |
 | Embeddings | `nomic-embed-text` | Ollama. Unloaded before FLUX. |
 | Ask | `llama3.2:3b` | Ollama. Default. Loaded only after FLUX has exited. |
@@ -103,10 +105,18 @@ On the Mac, from the repo root:
 cp .env.example .env.local
 bash scripts/setup_mac.sh
 npm install
-npx next dev --turbopack -H 0.0.0.0 -p 43123
+npm run dev -- --port 43123
 ```
 
 `scripts/setup_mac.sh` creates `.venv`, checks that `mflux-generate` is installed, confirms FLUX.1 schnell is already under `~/.cache/huggingface/hub` (it does not download the weights), and pulls `nomic-embed-text` plus `llama3.2:3b`. Next spawns `.venv/bin/python` when that file exists, or `PAPER_LENS_PYTHON` if you set it. `PAPER_LENS_MOCK=0` turns mock mode off on the first visit, before a choice is saved in the browser.
+
+## Standalone macOS app
+
+On an Apple Silicon Mac with Ollama models, MFLUX, and FLUX.1 schnell already installed, run `npm run package:mac`. It creates `dist/Paper Lens.app`, which opens from Finder and includes the web app, Node, Python/MFLUX, Ollama, Apple OCR, and the configured model weights. Model files are hard-linked during staging, so the app does not use a second copy of the 31 GB FLUX model on the build volume. The app remains complete if you remove the source cache; copying it to another volume takes tens of gigabytes. It targets macOS 14 or newer and runs its local server on `127.0.0.1`.
+
+The app bundle is unsigned for local use. Distribution to other Macs needs Developer ID signing and notarization.
+
+The bundle includes Llama 3.2. It carries Meta’s license and attribution notice; see `Contents/Resources/Notice.txt` and `Llama-3.2-License.txt` in the app bundle.
 
 ## Apple OCR
 

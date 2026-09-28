@@ -2,6 +2,7 @@ import { FLUX_SCHNELL, isFluxModelId } from "@/lib/charts/models";
 import { parseSidecar, runPython } from "@/lib/charts/sidecar";
 import { groundDiagram, noteForDiagram, type RawDiagram } from "@/lib/charts/spec";
 import type { ChartSpec } from "@/lib/api/types";
+import { rejectCrossOriginPost } from "@/lib/api/same-origin";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,8 @@ type PipelineChart = RawDiagram & {
 };
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossOriginPost(request);
+  if (rejected) return rejected;
   let body: {
     status?: string;
     ocr?: boolean;

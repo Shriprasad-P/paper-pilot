@@ -35,4 +35,4 @@ if [[ ! -f .env.local ]]; then
 fi
 
 echo "Setup done. Live stack: Apple OCR + nomic-embed-text + llama3.2:3b + mflux FLUX, one heavy model at a time."
-echo "Start the desk with: npm install && npx next dev --turbopack -H 0.0.0.0 -p 43123"
+echo "Start the desk with: npm install && npx next dev -H 127.0.0.1 -p 43123"

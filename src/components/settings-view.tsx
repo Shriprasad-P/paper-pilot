@@ -249,6 +249,7 @@ export function SettingsView() {
           {theme === "dark" ? "Use light mode" : "Use dark mode"}
         </Button>
       </div>
+      <p className="mt-6 text-xs text-muted-foreground">Built with Llama.</p>
     </div>
   );
 }

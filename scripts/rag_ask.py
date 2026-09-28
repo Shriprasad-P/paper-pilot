@@ -21,6 +21,7 @@ STORE = ROOT / ".data" / "rag"
 EMBED_MODEL = os.environ.get("PAPER_LENS_EMBED_MODEL", "nomic-embed-text")
 ASK_MODEL = "llama3.2:3b"
 ALLOWED_ASK = {"llama3.2:3b", "gemma2:2b"}
+OLLAMA_URL = os.environ.get("PAPER_LENS_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 
 
 def post_json(url: str, payload: dict, timeout: int = 120) -> dict:
@@ -35,13 +36,13 @@ def post_json(url: str, payload: dict, timeout: int = 120) -> dict:
 
 def embed_one(model: str, text: str) -> list[float]:
     try:
-        payload = post_json("http://127.0.0.1:11434/api/embed", {"model": model, "input": text})
+        payload = post_json(f"{OLLAMA_URL}/api/embed", {"model": model, "input": text})
         vectors = payload.get("embeddings") or []
         if vectors and isinstance(vectors[0], list):
             return vectors[0]
     except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError, KeyError):
         pass
-    payload = post_json("http://127.0.0.1:11434/api/embeddings", {"model": model, "prompt": text})
+    payload = post_json(f"{OLLAMA_URL}/api/embeddings", {"model": model, "prompt": text})
     vector = payload.get("embedding")
     if not isinstance(vector, list):
         raise RuntimeError("The embedding model did not return a vector.")
@@ -135,7 +136,7 @@ def generate(model: str, question: str, rows: list[dict], chart: dict | None) ->
     )
     user = chart_note + "\n\n".join(blocks) + f"\n\nQuestion: {question}"
     payload = post_json(
-        "http://127.0.0.1:11434/api/chat",
+        f"{OLLAMA_URL}/api/chat",
         {
             "model": model,
             "stream": False,

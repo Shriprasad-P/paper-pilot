@@ -1,9 +1,12 @@
 import { ASK_MODEL, EMBED_MODEL, isAskModelId } from "@/lib/charts/models";
 import { parseSidecar, runPython } from "@/lib/charts/sidecar";
+import { rejectCrossOriginPost } from "@/lib/api/same-origin";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossOriginPost(request);
+  if (rejected) return rejected;
   let body: {
     paperId?: string;
     question?: string;

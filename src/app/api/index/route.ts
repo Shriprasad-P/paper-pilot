@@ -1,9 +1,12 @@
 import { parseSidecar, runPython } from "@/lib/charts/sidecar";
 import { EMBED_MODEL } from "@/lib/charts/models";
+import { rejectCrossOriginPost } from "@/lib/api/same-origin";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const rejected = rejectCrossOriginPost(request);
+  if (rejected) return rejected;
   let body: {
     paperId?: string;
     chunks?: Array<{ id?: string; section?: string; page?: number | null; text?: string }>;

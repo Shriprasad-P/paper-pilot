@@ -26,6 +26,7 @@ from diagram_ground import ground
 ROOT = Path(__file__).resolve().parent
 FLUX = ROOT / "flux_render.py"
 PUBLIC = ROOT.parent / "public" / "generated"
+OLLAMA_URL = os.environ.get("PAPER_LENS_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 
 METHOD = re.compile(
     r"model|architect|encoder|decoder|attention|embed|position|train|optim|regular|feed-forward|method|figure",
@@ -65,7 +66,7 @@ _STOP = {
 def unload_ollama() -> None:
     """Drop resident Ollama models before FLUX. Missing Ollama is fine."""
     try:
-        with urllib.request.urlopen("http://127.0.0.1:11434/api/ps", timeout=0.4) as res:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/ps", timeout=0.4) as res:
             payload = json.loads(res.read().decode())
     except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
         return
@@ -75,7 +76,7 @@ def unload_ollama() -> None:
             continue
         body = json.dumps({"model": name, "keep_alive": 0, "prompt": ""}).encode()
         req = urllib.request.Request(
-            "http://127.0.0.1:11434/api/generate",
+            f"{OLLAMA_URL}/api/generate",
             data=body,
             headers={"Content-Type": "application/json"},
         )
