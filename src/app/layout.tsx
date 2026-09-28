@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   },
   description:
     "A reading desk for research papers: plain-language walkthroughs, equation notes, and charts grounded in retrieved excerpts.",
+  icons: {
+    icon: "/paper-lens-icon.png",
+    apple: "/paper-lens-icon.png",
+  },
 };
 
 export default function RootLayout({

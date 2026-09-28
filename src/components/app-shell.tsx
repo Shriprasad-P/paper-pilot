@@ -1,8 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LensMark } from "@/components/ask-chart-button";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -26,9 +26,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
         <div className="flex h-14 items-center justify-between gap-3 px-4 md:px-6">
           <Link href="/" className="flex items-center gap-2 font-medium">
-            <span className="inline-flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <LensMark className="size-5" />
-            </span>
+            <Image
+              src="/paper-lens-icon.png"
+              alt=""
+              width={32}
+              height={32}
+              className="size-8 shrink-0 rounded-lg"
+              unoptimized
+            />
             <span className="font-serif text-lg">Paper Lens</span>
           </Link>
           <nav className="flex items-center gap-1 text-sm" aria-label="Primary">

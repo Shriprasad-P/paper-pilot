@@ -20,16 +20,6 @@ export function AskChartMark({ className }: { className?: string }) {
   );
 }
 
-export function LensMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <circle cx="14" cy="14" r="7.25" fill="none" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M19.2 19.2 25 25" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M11 14h6M14 11v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function AskChartButton({
   onClick,
   label = "Ask about this",

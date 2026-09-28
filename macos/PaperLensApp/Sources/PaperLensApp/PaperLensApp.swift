@@ -39,6 +39,10 @@ struct PaperLensApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        if let resources = Bundle.main.resourceURL,
+           let icon = NSImage(contentsOf: resources.appendingPathComponent("PaperLensServer/public/paper-lens-icon.png")) {
+            NSApp.applicationIconImage = icon
+        }
         NSApp.activate(ignoringOtherApps: true)
         Task { await AppModel.shared.start() }
     }
