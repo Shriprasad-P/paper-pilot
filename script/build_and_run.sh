@@ -3,7 +3,7 @@ set -euo pipefail
 
 MODE="${1:-run}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PROCESS="PaperLens"
+APP_PROCESS="PaperLensApp"
 APP_EXECUTABLE="PaperLensApp"
 APP_BUNDLE="$ROOT_DIR/dist/Paper Lens.app"
 APP_BIN="$APP_BUNDLE/Contents/MacOS/$APP_EXECUTABLE"

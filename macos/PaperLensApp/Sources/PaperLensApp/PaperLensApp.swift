@@ -105,13 +105,43 @@ final class AppModel: ObservableObject {
             for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         ).appendingPathComponent("Paper Lens", isDirectory: true)
         let target = support.appendingPathComponent("PaperLensServer", isDirectory: true)
+        let persistent = support.appendingPathComponent("PaperLensData", isDirectory: true)
+        let persistentData = persistent.appendingPathComponent(".data", isDirectory: true)
+        let persistentGenerated = persistent.appendingPathComponent("generated", isDirectory: true)
         let sourceBuild = try String(contentsOf: source.appendingPathComponent(".next/BUILD_ID"), encoding: .utf8)
         let targetBuild = try? String(contentsOf: target.appendingPathComponent(".next/BUILD_ID"), encoding: .utf8)
+        try FileManager.default.createDirectory(at: persistent, withIntermediateDirectories: true)
         if sourceBuild != targetBuild {
+            let oldData = target.appendingPathComponent(".data", isDirectory: true)
+            let oldGenerated = target.appendingPathComponent("public/generated", isDirectory: true)
+            if FileManager.default.fileExists(atPath: oldData.path),
+               (try? FileManager.default.attributesOfItem(atPath: oldData.path)[.type] as? FileAttributeType) != .typeSymbolicLink,
+               !FileManager.default.fileExists(atPath: persistentData.path) {
+                try FileManager.default.moveItem(at: oldData, to: persistentData)
+            }
+            if FileManager.default.fileExists(atPath: oldGenerated.path),
+               (try? FileManager.default.attributesOfItem(atPath: oldGenerated.path)[.type] as? FileAttributeType) != .typeSymbolicLink,
+               !FileManager.default.fileExists(atPath: persistentGenerated.path) {
+                try FileManager.default.moveItem(at: oldGenerated, to: persistentGenerated)
+            }
             try? FileManager.default.removeItem(at: target)
             try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
             try FileManager.default.copyItem(at: source, to: target)
         }
+        try FileManager.default.createDirectory(at: persistentData, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: persistentGenerated, withIntermediateDirectories: true)
+        let dataPath = target.appendingPathComponent(".data", isDirectory: true)
+        if FileManager.default.fileExists(atPath: dataPath.path) {
+            try FileManager.default.removeItem(at: dataPath)
+        }
+        try FileManager.default.createSymbolicLink(at: dataPath, withDestinationURL: persistentData)
+        let publicDirectory = target.appendingPathComponent("public", isDirectory: true)
+        try FileManager.default.createDirectory(at: publicDirectory, withIntermediateDirectories: true)
+        let generatedPath = publicDirectory.appendingPathComponent("generated", isDirectory: true)
+        if FileManager.default.fileExists(atPath: generatedPath.path) {
+            try FileManager.default.removeItem(at: generatedPath)
+        }
+        try FileManager.default.createSymbolicLink(at: generatedPath, withDestinationURL: persistentGenerated)
         return target
     }
 
